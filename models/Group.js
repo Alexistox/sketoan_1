@@ -33,6 +33,17 @@ const GroupSchema = new mongoose.Schema({
   lastClearDate: {
     type: Date,
     default: Date.now
+  },
+  operators: {
+    type: [{
+      userId: String,
+      username: String,
+      dateAdded: {
+        type: Date,
+        default: Date.now
+      }
+    }],
+    default: []
   }
 }, { timestamps: true });
 

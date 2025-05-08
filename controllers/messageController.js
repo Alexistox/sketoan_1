@@ -247,6 +247,15 @@ const handleMessage = async (bot, msg, cache) => {
         }
         return;
       }
+      
+      if (messageText === '/migrate') {
+        if (await isUserOwner(userId)) {
+          await handleMigrateDataCommand(bot, msg);
+        } else {
+          bot.sendMessage(chatId, "⛔ 只有机器人所有者才能使用此命令！");
+        }
+        return;
+      }
     }
     
     // Xử lý tin nhắn + và -
@@ -336,6 +345,7 @@ const isUserOwner = async (userId) => {
 // Hàm kiểm tra quyền hạn sử dụng (owner hoặc allowed)
 const isUserAuthorized = async (userId, username, chatId) => {
   try {
+    // Kiểm tra xem người dùng có phải là owner không
     const user = await User.findOne({ 
       $or: [
         { userId: userId.toString() },
@@ -343,13 +353,32 @@ const isUserAuthorized = async (userId, username, chatId) => {
       ]
     });
     
-    if (!user) return false;
+    // Nếu là owner, cho phép tất cả
+    if (user && user.isOwner) return true;
     
-    // If user is owner, they're authorized in all groups
-    if (user.isOwner) return true;
+    // Kiểm tra xem người dùng có trong danh sách operators của nhóm không
+    const group = await Group.findOne({ chatId: chatId.toString() });
+    if (group && group.operators) {
+      // Kiểm tra theo userId
+      if (user && group.operators.some(op => op.userId === user.userId)) {
+        return true;
+      }
+      
+      // Kiểm tra theo username
+      if (group.operators.some(op => op.username === username)) {
+        return true;
+      }
+    }
     
-    // For global permission (backwards compatibility) or if they have permission in this specific group
-    return user.isAllowed || (user.allowedGroups && user.allowedGroups.includes(chatId.toString()));
+    // Hỗ trợ ngược - kiểm tra quyền global legacy
+    if (user && user.isAllowed) return true;
+    
+    // Hỗ trợ ngược - kiểm tra quyền theo nhóm legacy
+    if (user && user.allowedGroups && user.allowedGroups.includes(chatId.toString())) {
+      return true;
+    }
+    
+    return false;
   } catch (error) {
     console.error('Error in isUserAuthorized:', error);
     return false;
@@ -392,7 +421,8 @@ const {
   handleSetUsdtAddressCommand,
   handleGetUsdtAddressCommand,
   handleSetOwnerCommand,
-  handleRemoveCommand
+  handleRemoveCommand,
+  handleMigrateDataCommand
 } = require('./userCommands');
 
 const {
