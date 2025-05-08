@@ -10,14 +10,17 @@ const handleAddOperatorCommand = async (bot, msg) => {
     const chatId = msg.chat.id;
     const messageText = msg.text;
     
-    // Phân tích tin nhắn
-    const parts = messageText.split('加操作人');
-    if (parts.length !== 2) {
-      bot.sendMessage(chatId, "指令无效。格式为：加操作人@username");
+    // Phân tích tin nhắn bằng cách tìm index của '加操作人' và lấy tất cả ký tự sau đó
+    const cmdIndex = messageText.indexOf('加操作人');
+    if (cmdIndex === -1) {
+      bot.sendMessage(chatId, "指令无效。格式为：加操作人 @username");
       return;
     }
     
-    const username = parts[1].trim().replace('@', '');
+    // Lấy phần sau lệnh
+    const usernameText = messageText.substring(cmdIndex + 4).trim();
+    const username = usernameText.replace('@', '');
+    
     if (!username) {
       bot.sendMessage(chatId, "请指定一个用户名。");
       return;
@@ -55,21 +58,24 @@ const handleRemoveOperatorCommand = async (bot, msg) => {
     const chatId = msg.chat.id;
     const messageText = msg.text;
     
-    // Phân tích tin nhắn
-    const parts = messageText.split('移除操作人');
-    if (parts.length !== 2) {
-      bot.sendMessage(chatId, "指令无效。格式为：移除操作人@username");
+    // Phân tích tin nhắn bằng cách tìm index của '移除操作人' và lấy tất cả ký tự sau đó
+    const cmdIndex = messageText.indexOf('移除操作人');
+    if (cmdIndex === -1) {
+      bot.sendMessage(chatId, "指令无效。格式为：移除操作人 @username");
       return;
     }
     
-    const username = parts[1].trim().replace('@', '');
+    // Lấy phần sau lệnh
+    const usernameText = messageText.substring(cmdIndex + 4).trim();
+    const username = usernameText.replace('@', '');
+    
     if (!username) {
       bot.sendMessage(chatId, "请指定一个用户名。");
       return;
     }
     
     // Tìm người dùng theo username
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ username: username.toLowerCase() });
     
     if (!user) {
       bot.sendMessage(chatId, `⚠️ 未找到用户 @${username}。`);
