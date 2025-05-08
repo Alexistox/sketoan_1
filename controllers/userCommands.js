@@ -45,15 +45,17 @@ const handleAddOperatorCommand = async (bot, msg) => {
       group = new Group({ chatId: chatId.toString() });
     }
     
-    // Kiểm tra xem người dùng đã có trong danh sách operators chưa
-    const existingOperator = group.operators.find(op => op.username === username);
+    // Kiểm tra xem người dùng đã có trong danh sách operators chưa - không phân biệt hoa thường
+    const existingOperator = group.operators.find(op => op.username.toLowerCase() === username.toLowerCase());
     if (existingOperator) {
-      bot.sendMessage(chatId, `⚠️ 用户 @${username} 已在此群组的操作人列表中。`);
+      bot.sendMessage(chatId, `⚠️ 用户 @${existingOperator.username} 已在此群组的操作人列表中。`);
       return;
     }
     
-    // Tìm người dùng theo username
-    let user = await User.findOne({ username });
+    // Tìm người dùng theo username - không phân biệt hoa thường
+    let user = await User.findOne({ 
+      username: { $regex: new RegExp(`^${username}$`, 'i') } 
+    });
     
     if (!user) {
       // Tạo người dùng mới nếu không tồn tại
@@ -71,11 +73,12 @@ const handleAddOperatorCommand = async (bot, msg) => {
     // Thêm người dùng vào danh sách operators của nhóm
     group.operators.push({
       userId: user.userId,
-      username: user.username
+      username: user.username,
+      dateAdded: new Date()
     });
     
     await group.save();
-    bot.sendMessage(chatId, `✅ 已添加用户 @${username} 到此群组的操作人列表。`);
+    bot.sendMessage(chatId, `✅ 已添加用户 @${user.username} 到此群组的操作人列表。`);
   } catch (error) {
     console.error('Error in handleAddOperatorCommand:', error);
     bot.sendMessage(msg.chat.id, "处理添加操作人命令时出错。请稍后再试。");
@@ -108,20 +111,23 @@ const handleRemoveOperatorCommand = async (bot, msg) => {
     
     // Tìm thông tin nhóm
     let group = await Group.findOne({ chatId: chatId.toString() });
-    if (!group) {
-      bot.sendMessage(chatId, `⚠️ 此群组尚未设置任何操作人。`);
+    if (!group || !group.operators || group.operators.length === 0) {
+      bot.sendMessage(chatId, `⚠️ 此群组尚未设置任何操作人。使用 /users 命令查看可用操作人列表。`);
       return;
     }
     
-    // Kiểm tra xem người dùng có trong danh sách operators không
-    const operatorIndex = group.operators.findIndex(op => op.username === username);
+    // Kiểm tra xem người dùng có trong danh sách operators không - không phân biệt hoa thường
+    const operatorIndex = group.operators.findIndex(op => op.username.toLowerCase() === username.toLowerCase());
     if (operatorIndex === -1) {
-      bot.sendMessage(chatId, `⚠️ 用户 @${username} 不在此群组的操作人列表中。`);
+      bot.sendMessage(chatId, `⚠️ 用户 @${username} 不在此群组的操作人列表中。使用 /users 命令查看可用操作人列表。`);
       return;
     }
+    
+    // Lấy thông tin operator từ danh sách
+    const operator = group.operators[operatorIndex];
     
     // Kiểm tra nếu là owner
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ username: operator.username });
     if (user && user.isOwner) {
       bot.sendMessage(chatId, `⛔ 不能移除机器人所有者！`);
       return;
@@ -131,7 +137,7 @@ const handleRemoveOperatorCommand = async (bot, msg) => {
     group.operators.splice(operatorIndex, 1);
     
     await group.save();
-    bot.sendMessage(chatId, `✅ 已从此群组的操作人列表中移除用户 @${username}。`);
+    bot.sendMessage(chatId, `✅ 已从此群组的操作人列表中移除用户 @${operator.username}。`);
   } catch (error) {
     console.error('Error in handleRemoveOperatorCommand:', error);
     bot.sendMessage(msg.chat.id, "处理移除操作人命令时出错。请稍后再试。");
@@ -158,8 +164,13 @@ const handleListUsersCommand = async (bot, msg) => {
     const group = await Group.findOne({ chatId: chatId.toString() });
     
     let operatorsList = '';
-    if (group && group.operators.length > 0) {
-      operatorsList = '👥 此群组的操作人列表:\n' + group.operators.map(op => '@' + op.username).join(', ');
+    if (group && group.operators && group.operators.length > 0) {
+      // Sắp xếp theo thời gian thêm vào, mới nhất lên đầu
+      const sortedOperators = [...group.operators].sort((a, b) => 
+        new Date(b.dateAdded || 0) - new Date(a.dateAdded || 0)
+      );
+      
+      operatorsList = '👥 此群组的操作人列表:\n' + sortedOperators.map(op => '@' + op.username).join(', ');
     } else {
       operatorsList = '👥 此群组尚未有操作人';
     }
@@ -343,6 +354,9 @@ const handleSetOwnerCommand = async (bot, msg) => {
   }
 };
 
+/**
+ * Xử lý lệnh xóa người điều hành theo tên người dùng (/remove)
+ */
 const handleRemoveCommand = async (bot, msg) => {
   try {
     const chatId = msg.chat.id;
@@ -366,20 +380,23 @@ const handleRemoveCommand = async (bot, msg) => {
     
     // Tìm thông tin nhóm
     let group = await Group.findOne({ chatId: chatId.toString() });
-    if (!group) {
-      bot.sendMessage(chatId, `⚠️ 此群组尚未设置任何操作人。`);
+    if (!group || !group.operators || group.operators.length === 0) {
+      bot.sendMessage(chatId, `⚠️ 此群组尚未设置任何操作人。使用 /users 命令查看可用操作人列表。`);
       return;
     }
     
     // Kiểm tra xem người dùng có trong danh sách operators không
-    const operatorIndex = group.operators.findIndex(op => op.username === username);
+    const operatorIndex = group.operators.findIndex(op => op.username.toLowerCase() === username.toLowerCase());
     if (operatorIndex === -1) {
-      bot.sendMessage(chatId, `⚠️ 用户 @${username} 不在此群组的操作人列表中。`);
+      bot.sendMessage(chatId, `⚠️ 用户 @${username} 不在此群组的操作人列表中。使用 /users 命令查看可用操作人列表。`);
       return;
     }
     
+    // Lấy thông tin operator từ danh sách
+    const operator = group.operators[operatorIndex];
+    
     // Kiểm tra nếu là owner
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ username: operator.username });
     if (user && user.isOwner) {
       bot.sendMessage(chatId, `⛔ 不能移除机器人所有者！`);
       return;
@@ -389,7 +406,7 @@ const handleRemoveCommand = async (bot, msg) => {
     group.operators.splice(operatorIndex, 1);
     
     await group.save();
-    bot.sendMessage(chatId, `✅ 已从此群组的操作人列表中移除用户 @${username}。`);
+    bot.sendMessage(chatId, `✅ 已从此群组的操作人列表中移除用户 @${operator.username}。`);
   } catch (error) {
     console.error('Error in handleRemoveCommand:', error);
     bot.sendMessage(msg.chat.id, "处理移除操作人命令时出错。请稍后再试。");
