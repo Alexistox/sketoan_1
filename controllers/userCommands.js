@@ -96,16 +96,16 @@ const handleRemoveOperatorCommand = async (bot, msg) => {
     // Phân tích tin nhắn bằng cách tìm index của '移除操作人' và lấy tất cả ký tự sau đó
     const cmdIndex = messageText.indexOf('移除操作人');
     if (cmdIndex === -1) {
-      bot.sendMessage(chatId, "指令无效。格式为：移除操作人 @username");
+      bot.sendMessage(chatId, "指令无效。格式为：移除操作人 @username 或 移除操作人 ID");
       return;
     }
     
-    // Lấy phần sau lệnh
-    const usernameText = messageText.substring(cmdIndex + 4).trim();
-    const username = usernameText.replace('@', '');
+    // Lấy phần sau lệnh - username hoặc ID
+    const input = messageText.substring(cmdIndex + 4).trim();
+    const username = input.replace('@', '');
     
-    if (!username) {
-      bot.sendMessage(chatId, "请指定一个用户名。");
+    if (!input) {
+      bot.sendMessage(chatId, "请指定一个用户名或ID。");
       return;
     }
     
@@ -116,10 +116,19 @@ const handleRemoveOperatorCommand = async (bot, msg) => {
       return;
     }
     
-    // Kiểm tra xem người dùng có trong danh sách operators không - không phân biệt hoa thường
-    const operatorIndex = group.operators.findIndex(op => op.username.toLowerCase() === username.toLowerCase());
+    // Kiểm tra xem input có phải là userid không
+    let operatorIndex = -1;
+    
+    // Thử tìm theo userID
+    operatorIndex = group.operators.findIndex(op => op.userId === input);
+    
+    // Nếu không tìm thấy theo userID, thử tìm theo username (không phân biệt hoa thường)
     if (operatorIndex === -1) {
-      bot.sendMessage(chatId, `⚠️ 用户 @${username} 不在此群组的操作人列表中。使用 /users 命令查看可用操作人列表。`);
+      operatorIndex = group.operators.findIndex(op => op.username.toLowerCase() === username.toLowerCase());
+    }
+    
+    if (operatorIndex === -1) {
+      bot.sendMessage(chatId, `⚠️ 未找到用户 "${input}"。使用 /users 命令查看可用操作人列表和ID。`);
       return;
     }
     
@@ -137,7 +146,7 @@ const handleRemoveOperatorCommand = async (bot, msg) => {
     group.operators.splice(operatorIndex, 1);
     
     await group.save();
-    bot.sendMessage(chatId, `✅ 已从此群组的操作人列表中移除用户 @${operator.username}。`);
+    bot.sendMessage(chatId, `✅ 已从此群组的操作人列表中移除用户 @${operator.username} (ID: ${operator.userId})。`);
   } catch (error) {
     console.error('Error in handleRemoveOperatorCommand:', error);
     bot.sendMessage(msg.chat.id, "处理移除操作人命令时出错。请稍后再试。");
@@ -155,7 +164,7 @@ const handleListUsersCommand = async (bot, msg) => {
     const owners = await User.find({ isOwner: true });
     let ownersList = '';
     if (owners.length > 0) {
-      ownersList = '🔑 所有者列表:\n' + owners.map(o => '@' + o.username).join(', ');
+      ownersList = '🔑 所有者列表:\n' + owners.map(o => `@${o.username}: ${o.userId}`).join('\n');
     } else {
       ownersList = '🔑 尚未设置机器人所有者';
     }
@@ -170,7 +179,7 @@ const handleListUsersCommand = async (bot, msg) => {
         new Date(b.dateAdded || 0) - new Date(a.dateAdded || 0)
       );
       
-      operatorsList = '👥 此群组的操作人列表:\n' + sortedOperators.map(op => '@' + op.username).join(', ');
+      operatorsList = '👥 此群组的操作人列表:\n' + sortedOperators.map(op => `@${op.username}: ${op.userId}`).join('\n');
     } else {
       operatorsList = '👥 此群组尚未有操作人';
     }
@@ -355,26 +364,26 @@ const handleSetOwnerCommand = async (bot, msg) => {
 };
 
 /**
- * Xử lý lệnh xóa người điều hành theo tên người dùng (/remove)
+ * Xử lý lệnh xóa người điều hành theo tên người dùng hoặc ID (/remove)
  */
 const handleRemoveCommand = async (bot, msg) => {
   try {
     const chatId = msg.chat.id;
     const messageText = msg.text;
     
-    // Phân tích tin nhắn để lấy username
+    // Phân tích tin nhắn để lấy username hoặc ID
     const parts = messageText.split('/remove ');
     if (parts.length !== 2) {
-      bot.sendMessage(chatId, "⚠️ 指令无效。格式为：/remove @username");
+      bot.sendMessage(chatId, "⚠️ 指令无效。格式为：/remove @username 或 /remove ID");
       return;
     }
     
-    // Lấy username và loại bỏ ký tự "@" nếu có
-    const usernameText = parts[1].trim();
-    const username = usernameText.replace('@', '');
+    // Lấy username hoặc ID
+    const input = parts[1].trim();
+    const username = input.replace('@', '');
     
-    if (!username) {
-      bot.sendMessage(chatId, "⚠️ 请指定一个用户名。");
+    if (!input) {
+      bot.sendMessage(chatId, "⚠️ 请指定一个用户名或ID。");
       return;
     }
     
@@ -385,10 +394,19 @@ const handleRemoveCommand = async (bot, msg) => {
       return;
     }
     
-    // Kiểm tra xem người dùng có trong danh sách operators không
-    const operatorIndex = group.operators.findIndex(op => op.username.toLowerCase() === username.toLowerCase());
+    // Kiểm tra xem input có phải là userid không
+    let operatorIndex = -1;
+    
+    // Thử tìm theo userID
+    operatorIndex = group.operators.findIndex(op => op.userId === input);
+    
+    // Nếu không tìm thấy theo userID, thử tìm theo username (không phân biệt hoa thường)
     if (operatorIndex === -1) {
-      bot.sendMessage(chatId, `⚠️ 用户 @${username} 不在此群组的操作人列表中。使用 /users 命令查看可用操作人列表。`);
+      operatorIndex = group.operators.findIndex(op => op.username.toLowerCase() === username.toLowerCase());
+    }
+    
+    if (operatorIndex === -1) {
+      bot.sendMessage(chatId, `⚠️ 未找到用户 "${input}"。使用 /users 命令查看可用操作人列表和ID。`);
       return;
     }
     
@@ -406,7 +424,7 @@ const handleRemoveCommand = async (bot, msg) => {
     group.operators.splice(operatorIndex, 1);
     
     await group.save();
-    bot.sendMessage(chatId, `✅ 已从此群组的操作人列表中移除用户 @${operator.username}。`);
+    bot.sendMessage(chatId, `✅ 已从此群组的操作人列表中移除用户 @${operator.username} (ID: ${operator.userId})。`);
   } catch (error) {
     console.error('Error in handleRemoveCommand:', error);
     bot.sendMessage(msg.chat.id, "处理移除操作人命令时出错。请稍后再试。");
