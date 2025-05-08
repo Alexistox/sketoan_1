@@ -31,7 +31,11 @@ const handleAddOperatorCommand = async (bot, msg) => {
     
     if (!user) {
       // Tạo người dùng mới nếu không tồn tại
+      // Tạo một ID người dùng duy nhất sử dụng timestamp
+      const uniqueUserId = `user_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      
       user = new User({
+        userId: uniqueUserId, // Thêm userId cho user mới
         username,
         isAllowed: true
       });
