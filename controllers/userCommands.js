@@ -79,7 +79,7 @@ const handleRemoveOperatorCommand = async (bot, msg) => {
     }
     
     // Tìm người dùng theo username
-    const user = await User.findOne({ username: username.toLowerCase() });
+    const user = await User.findOne({ username });
     
     if (!user) {
       bot.sendMessage(chatId, `⚠️ 未找到用户 @${username}。`);
