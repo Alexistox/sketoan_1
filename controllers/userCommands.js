@@ -99,17 +99,40 @@ const handleRemoveOperatorCommand = async (bot, msg) => {
     const user = await User.findOne({ username });
     
     if (!user) {
-      bot.sendMessage(chatId, `⚠️ 未找到用户 @${username}。`);
-    } else if (!user.allowedGroups || !user.allowedGroups.includes(chatId.toString())) {
-      bot.sendMessage(chatId, `⚠️ 用户 @${username} 不在此群组的操作人列表中。`);
-    } else if (user.isOwner) {
-      bot.sendMessage(chatId, `⛔ 不能移除机器人所有者！`);
-    } else {
-      // Remove this group from the user's allowed groups
-      user.allowedGroups = user.allowedGroups.filter(g => g !== chatId.toString());
-      await user.save();
-      bot.sendMessage(chatId, `✅ 已从此群组的操作人列表中移除用户 @${username}。`);
+      bot.sendMessage(chatId, `⚠️ 未找到用户 @${username}。使用 /users 命令查看可用用户列表。`);
+      return;
     }
+    
+    if (user.isOwner) {
+      bot.sendMessage(chatId, `⛔ 不能移除机器人所有者！`);
+      return;
+    }
+    
+    const isInGlobalList = user.isAllowed;
+    const isInGroupList = user.allowedGroups && user.allowedGroups.includes(chatId.toString());
+    
+    if (!isInGlobalList && !isInGroupList) {
+      bot.sendMessage(chatId, `⚠️ 用户 @${username} 不在此群组的操作人列表中。`);
+      return;
+    }
+    
+    // If user has global permissions (legacy), we need to check if they should be removed
+    if (isInGlobalList) {
+      // We'll convert the global permission to group-specific permissions for all groups except this one
+      user.isAllowed = false;
+      
+      // First get all groups where this user might be active from their allowedGroups
+      const currentGroups = [...(user.allowedGroups || [])];
+      
+      // Filter out the current group
+      user.allowedGroups = currentGroups.filter(g => g !== chatId.toString());
+    } else {
+      // Just remove this specific group
+      user.allowedGroups = user.allowedGroups.filter(g => g !== chatId.toString());
+    }
+    
+    await user.save();
+    bot.sendMessage(chatId, `✅ 已从此群组的操作人列表中移除用户 @${username}。`);
   } catch (error) {
     console.error('Error in handleRemoveOperatorCommand:', error);
     bot.sendMessage(msg.chat.id, "处理移除操作人命令时出错。请稍后再试。");
@@ -123,26 +146,39 @@ const handleListUsersCommand = async (bot, msg) => {
   try {
     const chatId = msg.chat.id;
     
-    // Tìm owner
-    const owner = await User.findOne({ isOwner: true });
-    const ownerInfo = owner 
-      ? `Owner: ID ${owner.userId} ${owner.username ? '@'+owner.username : ''}` 
-      : 'No owner set';
+    // Tìm tất cả owner
+    const owners = await User.find({ isOwner: true });
+    let ownersList = '';
+    if (owners.length > 0) {
+      ownersList = '🔑 所有者列表:\n' + owners.map(o => '@' + o.username).join(', ');
+    } else {
+      ownersList = '🔑 尚未设置机器人所有者';
+    }
     
-    // Tìm tất cả người dùng được phép trong nhóm này
-    const allowedUsers = await User.find({ 
-      $or: [
-        { isAllowed: true, isOwner: false }, // Legacy global permissions
-        { allowedGroups: chatId.toString(), isOwner: false } // Group-specific permissions
+    // Tìm tất cả người dùng được phép trong nhóm này (nhưng không phải owner)
+    const groupOperators = await User.find({
+      $and: [
+        { isOwner: false },
+        { 
+          $or: [
+            // Global permissions (legacy)
+            { isAllowed: true },
+            // Group-specific permissions
+            { allowedGroups: chatId.toString() }
+          ]
+        }
       ]
     });
     
-    if (allowedUsers.length > 0) {
-      const usersList = allowedUsers.map(u => '@' + u.username).join(', ');
-      bot.sendMessage(chatId, `${ownerInfo}\n此群组被授权的用户列表: ${usersList}`);
+    let operatorsList = '';
+    if (groupOperators.length > 0) {
+      operatorsList = '👥 此群组的操作人列表:\n' + groupOperators.map(u => '@' + u.username).join(', ');
     } else {
-      bot.sendMessage(chatId, `${ownerInfo}\n此群组尚未有用户被添加到列表中。`);
+      operatorsList = '👥 此群组尚未有操作人';
     }
+    
+    // Send both lists
+    bot.sendMessage(chatId, `${ownersList}\n\n${operatorsList}`);
   } catch (error) {
     console.error('Error in handleListUsersCommand:', error);
     bot.sendMessage(msg.chat.id, "处理列出用户命令时出错。请稍后再试。");
