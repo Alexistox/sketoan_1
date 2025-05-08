@@ -358,6 +358,71 @@ const handleSetOwnerCommand = async (bot, msg) => {
   }
 };
 
+const handleRemoveCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const messageText = msg.text;
+    
+    // Phân tích tin nhắn để lấy username
+    const parts = messageText.split('/remove ');
+    if (parts.length !== 2) {
+      bot.sendMessage(chatId, "⚠️ 指令无效。格式为：/remove @username");
+      return;
+    }
+    
+    // Lấy username và loại bỏ ký tự "@" nếu có
+    const usernameText = parts[1].trim();
+    const username = usernameText.replace('@', '');
+    
+    if (!username) {
+      bot.sendMessage(chatId, "⚠️ 请指定一个用户名。");
+      return;
+    }
+    
+    // Tìm người dùng theo username
+    const user = await User.findOne({ username });
+    
+    if (!user) {
+      bot.sendMessage(chatId, `⚠️ 未找到用户 @${username}。使用 /users 命令查看可用用户列表。`);
+      return;
+    }
+    
+    if (user.isOwner) {
+      bot.sendMessage(chatId, `⛔ 不能移除机器人所有者！`);
+      return;
+    }
+    
+    const isInGlobalList = user.isAllowed;
+    const isInGroupList = user.allowedGroups && user.allowedGroups.includes(chatId.toString());
+    
+    if (!isInGlobalList && !isInGroupList) {
+      bot.sendMessage(chatId, `⚠️ 用户 @${username} 不在此群组的操作人列表中。`);
+      return;
+    }
+    
+    // Nếu user có quyền global
+    if (isInGlobalList) {
+      // Chuyển quyền global thành quyền specific cho các nhóm khác
+      user.isAllowed = false;
+      
+      // Lấy danh sách các nhóm hiện tại
+      const currentGroups = [...(user.allowedGroups || [])];
+      
+      // Loại bỏ nhóm hiện tại khỏi danh sách
+      user.allowedGroups = currentGroups.filter(g => g !== chatId.toString());
+    } else {
+      // Chỉ xóa quyền của nhóm hiện tại
+      user.allowedGroups = user.allowedGroups.filter(g => g !== chatId.toString());
+    }
+    
+    await user.save();
+    bot.sendMessage(chatId, `✅ 已从此群组的操作人列表中移除用户 @${username}。`);
+  } catch (error) {
+    console.error('Error in handleRemoveCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理移除操作人命令时出错。请稍后再试。");
+  }
+};
+
 module.exports = {
   handleAddOperatorCommand,
   handleRemoveOperatorCommand,
@@ -365,5 +430,6 @@ module.exports = {
   handleCurrencyUnitCommand,
   handleSetUsdtAddressCommand,
   handleGetUsdtAddressCommand,
-  handleSetOwnerCommand
+  handleSetOwnerCommand,
+  handleRemoveCommand
 }; 

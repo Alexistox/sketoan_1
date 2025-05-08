@@ -238,6 +238,15 @@ const handleMessage = async (bot, msg, cache) => {
         }
         return;
       }
+      
+      if (messageText.startsWith('/remove ')) {
+        if (await isUserOwner(userId)) {
+          await handleRemoveCommand(bot, msg);
+        } else {
+          bot.sendMessage(chatId, "⛔ 只有机器人所有者才能使用此命令！");
+        }
+        return;
+      }
     }
     
     // Xử lý tin nhắn + và -
@@ -382,7 +391,8 @@ const {
   handleCurrencyUnitCommand,
   handleSetUsdtAddressCommand,
   handleGetUsdtAddressCommand,
-  handleSetOwnerCommand
+  handleSetOwnerCommand,
+  handleRemoveCommand
 } = require('./userCommands');
 
 const {
