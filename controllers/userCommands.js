@@ -55,15 +55,14 @@ const handleAddOperatorCommand = async (bot, msg) => {
 };
 
 /**
- * Xử lý lệnh xóa quyền người điều hành (移除操作人)
- * Chỉ đặt quyền isAllowed = false, không xóa người dùng
+ * Xử lý lệnh xóa người điều hành (移除操作人)
  */
 const handleRemoveOperatorCommand = async (bot, msg) => {
   try {
     const chatId = msg.chat.id;
     const messageText = msg.text;
     
-    // Phân tích tin nhắn bằng cách tìm index của từ khóa
+    // Phân tích tin nhắn bằng cách tìm index của '移除操作人' và lấy tất cả ký tự sau đó
     const cmdIndex = messageText.indexOf('移除操作人');
     if (cmdIndex === -1) {
       bot.sendMessage(chatId, "指令无效。格式为：移除操作人 @username");
@@ -80,7 +79,7 @@ const handleRemoveOperatorCommand = async (bot, msg) => {
     }
     
     // Tìm người dùng theo username
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ username: username.toLowerCase() });
     
     if (!user) {
       bot.sendMessage(chatId, `⚠️ 未找到用户 @${username}。`);
@@ -91,54 +90,11 @@ const handleRemoveOperatorCommand = async (bot, msg) => {
     } else {
       user.isAllowed = false;
       await user.save();
-      bot.sendMessage(chatId, `✅ 已从操作人列表中移除用户 @${username}。用户记录仍然保留。`);
+      bot.sendMessage(chatId, `✅ 已从操作人列表中移除用户 @${username}。`);
     }
   } catch (error) {
     console.error('Error in handleRemoveOperatorCommand:', error);
     bot.sendMessage(msg.chat.id, "处理移除操作人命令时出错。请稍后再试。");
-  }
-};
-
-/**
- * Xử lý lệnh xóa hoàn toàn người điều hành (删除操作人)
- * Xóa hoàn toàn người dùng khỏi database
- */
-const handleDeleteOperatorCommand = async (bot, msg) => {
-  try {
-    const chatId = msg.chat.id;
-    const messageText = msg.text;
-    
-    // Phân tích tin nhắn bằng cách tìm index của từ khóa
-    const cmdIndex = messageText.indexOf('删除操作人');
-    if (cmdIndex === -1) {
-      bot.sendMessage(chatId, "指令无效。格式为：删除操作人 @username");
-      return;
-    }
-    
-    // Lấy phần sau lệnh
-    const usernameText = messageText.substring(cmdIndex + 4).trim();
-    const username = usernameText.replace('@', '');
-    
-    if (!username) {
-      bot.sendMessage(chatId, "请指定一个用户名。");
-      return;
-    }
-    
-    // Tìm người dùng theo username
-    const user = await User.findOne({ username });
-    
-    if (!user) {
-      bot.sendMessage(chatId, `⚠️ 未找到用户 @${username}。`);
-    } else if (user.isOwner) {
-      bot.sendMessage(chatId, `⛔ 不能删除机器人所有者！`);
-    } else {
-      // Xóa người dùng hoàn toàn khỏi database
-      await User.deleteOne({ username });
-      bot.sendMessage(chatId, `🗑️ 已永久删除用户 @${username}。`);
-    }
-  } catch (error) {
-    console.error('Error in handleDeleteOperatorCommand:', error);
-    bot.sendMessage(msg.chat.id, "处理删除操作人命令时出错。请稍后再试。");
   }
 };
 
@@ -283,7 +239,6 @@ const handleGetUsdtAddressCommand = async (bot, msg) => {
 module.exports = {
   handleAddOperatorCommand,
   handleRemoveOperatorCommand,
-  handleDeleteOperatorCommand,
   handleListUsersCommand,
   handleCurrencyUnitCommand,
   handleSetUsdtAddressCommand,

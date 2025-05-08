@@ -1,9 +1,9 @@
-var telegramToken = 'TELEGRAM_BOT_TOKEN'; // Thay bằng token của bạn
+var telegramToken = 'TELEGRAM_BOT_TOKEN';
 var telegramUrl = 'https://api.telegram.org/bot' + telegramToken;
 var openAiApiKey = 'OPENAI_API_KEY'; // Thay bằng API key của bạn
 
 // WebApp URL do Google Apps Script cung cấp khi Deploy dự án
-var webAppUrl = 'WEB_APP_URL'; // Thay bằng URL của bạn
+var webAppUrl = 'YOUR_WEB_APP_URL';
 
 // Hàm định dạng số: không có dấu phẩy phần nghìn, dấu chấm phần thập phân
 function formatSmart(num) {
