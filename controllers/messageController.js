@@ -108,7 +108,7 @@ const handleMessage = async (bot, msg, cache) => {
       return;
     }
     
-    if (messageText.startsWith('加操作人')) {
+    if (messageText.includes('加操作人')) {
       if (await isUserOwner(userId)) {
         await handleAddOperatorCommand(bot, msg);
       } else {
@@ -117,9 +117,20 @@ const handleMessage = async (bot, msg, cache) => {
       return;
     }
     
-    if (messageText.startsWith('移除操作人')) {
+    // Lệnh 移除操作人 - chỉ đặt isAllowed = false
+    if (messageText.includes('移除操作人')) {
       if (await isUserOwner(userId)) {
         await handleRemoveOperatorCommand(bot, msg);
+      } else {
+        bot.sendMessage(chatId, "您没有权限使用此命令！");
+      }
+      return;
+    }
+    
+    // Lệnh 删除操作人 - xóa người dùng hoàn toàn
+    if (messageText.includes('删除操作人')) {
+      if (await isUserOwner(userId)) {
+        await handleDeleteOperatorCommand(bot, msg);
       } else {
         bot.sendMessage(chatId, "您没有权限使用此命令！");
       }
