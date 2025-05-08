@@ -2,6 +2,17 @@ const User = require('../models/User');
 const Config = require('../models/Config');
 const { isTrc20Address } = require('../utils/formatter');
 
+// Helper function to check if user is owner (copied from messageController to avoid circular dependencies)
+const isUserOwner = async (userId) => {
+  try {
+    const user = await User.findOne({ userId: userId.toString() });
+    return user && user.isOwner;
+  } catch (error) {
+    console.error('Error in isUserOwner:', error);
+    return false;
+  }
+};
+
 /**
  * Xử lý lệnh thêm người điều hành (加操作人)
  */
@@ -37,16 +48,22 @@ const handleAddOperatorCommand = async (bot, msg) => {
       user = new User({
         userId: uniqueUserId, // Thêm userId cho user mới
         username,
-        isAllowed: true
+        isAllowed: false,
+        allowedGroups: [chatId.toString()]
       });
       await user.save();
-      bot.sendMessage(chatId, `✅ 已添加新用户 @${username} 到操作人列表。`);
-    } else if (user.isAllowed) {
-      bot.sendMessage(chatId, `⚠️ 用户 @${username} 已在操作人列表中。`);
+      bot.sendMessage(chatId, `✅ 已添加新用户 @${username} 到此群组的操作人列表。`);
+    } else if (user.allowedGroups && user.allowedGroups.includes(chatId.toString())) {
+      bot.sendMessage(chatId, `⚠️ 用户 @${username} 已在此群组的操作人列表中。`);
     } else {
-      user.isAllowed = true;
+      // Add this group to the user's allowed groups
+      if (!user.allowedGroups) {
+        user.allowedGroups = [chatId.toString()];
+      } else {
+        user.allowedGroups.push(chatId.toString());
+      }
       await user.save();
-      bot.sendMessage(chatId, `✅ 已添加用户 @${username} 到操作人列表。`);
+      bot.sendMessage(chatId, `✅ 已添加用户 @${username} 到此群组的操作人列表。`);
     }
   } catch (error) {
     console.error('Error in handleAddOperatorCommand:', error);
@@ -83,14 +100,15 @@ const handleRemoveOperatorCommand = async (bot, msg) => {
     
     if (!user) {
       bot.sendMessage(chatId, `⚠️ 未找到用户 @${username}。`);
-    } else if (!user.isAllowed) {
-      bot.sendMessage(chatId, `⚠️ 用户 @${username} 不在操作人列表中。`);
+    } else if (!user.allowedGroups || !user.allowedGroups.includes(chatId.toString())) {
+      bot.sendMessage(chatId, `⚠️ 用户 @${username} 不在此群组的操作人列表中。`);
     } else if (user.isOwner) {
       bot.sendMessage(chatId, `⛔ 不能移除机器人所有者！`);
     } else {
-      user.isAllowed = false;
+      // Remove this group from the user's allowed groups
+      user.allowedGroups = user.allowedGroups.filter(g => g !== chatId.toString());
       await user.save();
-      bot.sendMessage(chatId, `✅ 已从操作人列表中移除用户 @${username}。`);
+      bot.sendMessage(chatId, `✅ 已从此群组的操作人列表中移除用户 @${username}。`);
     }
   } catch (error) {
     console.error('Error in handleRemoveOperatorCommand:', error);
@@ -111,14 +129,19 @@ const handleListUsersCommand = async (bot, msg) => {
       ? `Owner: ID ${owner.userId} ${owner.username ? '@'+owner.username : ''}` 
       : 'No owner set';
     
-    // Tìm tất cả người dùng được phép
-    const allowedUsers = await User.find({ isAllowed: true, isOwner: false });
+    // Tìm tất cả người dùng được phép trong nhóm này
+    const allowedUsers = await User.find({ 
+      $or: [
+        { isAllowed: true, isOwner: false }, // Legacy global permissions
+        { allowedGroups: chatId.toString(), isOwner: false } // Group-specific permissions
+      ]
+    });
     
     if (allowedUsers.length > 0) {
       const usersList = allowedUsers.map(u => '@' + u.username).join(', ');
-      bot.sendMessage(chatId, `${ownerInfo}\n被授权的用户列表: ${usersList}`);
+      bot.sendMessage(chatId, `${ownerInfo}\n此群组被授权的用户列表: ${usersList}`);
     } else {
-      bot.sendMessage(chatId, `${ownerInfo}\n尚未有用户被添加到列表中。`);
+      bot.sendMessage(chatId, `${ownerInfo}\n此群组尚未有用户被添加到列表中。`);
     }
   } catch (error) {
     console.error('Error in handleListUsersCommand:', error);
@@ -236,11 +259,73 @@ const handleGetUsdtAddressCommand = async (bot, msg) => {
   }
 };
 
+/**
+ * Xử lý lệnh thiết lập người sở hữu (/setowner)
+ */
+const handleSetOwnerCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const messageText = msg.text;
+    const senderId = msg.from.id;
+    
+    // Chỉ cho phép owner hiện tại thêm owner khác
+    const isCurrentUserOwner = await isUserOwner(senderId.toString());
+    if (!isCurrentUserOwner) {
+      bot.sendMessage(chatId, "⛔ 只有机器人所有者才能使用此命令！");
+      return;
+    }
+    
+    // Phân tích tin nhắn
+    const parts = messageText.split('/setowner ');
+    if (parts.length !== 2) {
+      bot.sendMessage(chatId, "指令无效。格式为：/setowner @username");
+      return;
+    }
+    
+    // Lấy username
+    const usernameText = parts[1].trim();
+    const username = usernameText.replace('@', '');
+    
+    if (!username) {
+      bot.sendMessage(chatId, "请指定一个用户名。");
+      return;
+    }
+    
+    // Tìm người dùng theo username
+    let user = await User.findOne({ username });
+    
+    if (!user) {
+      // Tạo người dùng mới nếu không tồn tại
+      const uniqueUserId = `user_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      
+      user = new User({
+        userId: uniqueUserId,
+        username,
+        isOwner: true,
+        isAllowed: true
+      });
+      await user.save();
+      bot.sendMessage(chatId, `✅ 已将新用户 @${username} 设置为机器人所有者。`);
+    } else if (user.isOwner) {
+      bot.sendMessage(chatId, `⚠️ 用户 @${username} 已是机器人所有者。`);
+    } else {
+      user.isOwner = true;
+      user.isAllowed = true;
+      await user.save();
+      bot.sendMessage(chatId, `✅ 已将用户 @${username} 设置为机器人所有者。`);
+    }
+  } catch (error) {
+    console.error('Error in handleSetOwnerCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理设置所有者命令时出错。请稍后再试。");
+  }
+};
+
 module.exports = {
   handleAddOperatorCommand,
   handleRemoveOperatorCommand,
   handleListUsersCommand,
   handleCurrencyUnitCommand,
   handleSetUsdtAddressCommand,
-  handleGetUsdtAddressCommand
+  handleGetUsdtAddressCommand,
+  handleSetOwnerCommand
 }; 

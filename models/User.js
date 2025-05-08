@@ -18,6 +18,10 @@ const UserSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  allowedGroups: {
+    type: [String],
+    default: []
+  },
   firstName: {
     type: String,
     default: ''

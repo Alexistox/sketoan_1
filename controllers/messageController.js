@@ -68,7 +68,7 @@ const handleMessage = async (bot, msg, cache) => {
     
     // Xử lý các lệnh tiếng Trung
     if (messageText === '上课') {
-      if (await isUserAuthorized(userId, username)) {
+      if (await isUserAuthorized(userId, username, chatId)) {
         await handleClearCommand(bot, chatId, userId, firstName);
       } else {
         bot.sendMessage(chatId, "您无权使用此命令!");
@@ -82,7 +82,7 @@ const handleMessage = async (bot, msg, cache) => {
     }
     
     if (messageText.startsWith('设置费率')) {
-      if (await isUserAuthorized(userId, username)) {
+      if (await isUserAuthorized(userId, username, chatId)) {
         await handleRateCommand(bot, msg);
       } else {
         bot.sendMessage(chatId, "您无权使用此命令!");
@@ -91,7 +91,7 @@ const handleMessage = async (bot, msg, cache) => {
     }
     
     if (messageText.startsWith('设置汇率')) {
-      if (await isUserAuthorized(userId, username)) {
+      if (await isUserAuthorized(userId, username, chatId)) {
         await handleExchangeRateCommand(bot, msg);
       } else {
         bot.sendMessage(chatId, "您无权使用此命令!");
@@ -100,7 +100,7 @@ const handleMessage = async (bot, msg, cache) => {
     }
     
     if (messageText.startsWith('下发')) {
-      if (await isUserAuthorized(userId, username)) {
+      if (await isUserAuthorized(userId, username, chatId)) {
         await handlePercentCommand(bot, msg);
       } else {
         bot.sendMessage(chatId, "您无权使用此命令!");
@@ -139,7 +139,7 @@ const handleMessage = async (bot, msg, cache) => {
       }
       
       if (messageText.startsWith('/m ')) {
-        if (await isUserAuthorized(userId, username)) {
+        if (await isUserAuthorized(userId, username, chatId)) {
           await handleCurrencyUnitCommand(bot, msg);
         } else {
           bot.sendMessage(chatId, "您无权使用此命令!");
@@ -158,7 +158,7 @@ const handleMessage = async (bot, msg, cache) => {
       }
       
       if (messageText.startsWith('/d ')) {
-        if (await isUserAuthorized(userId, username)) {
+        if (await isUserAuthorized(userId, username, chatId)) {
           await handleDualRateCommand(bot, msg);
         } else {
           bot.sendMessage(chatId, "您无权使用此命令!");
@@ -167,7 +167,7 @@ const handleMessage = async (bot, msg, cache) => {
       }
       
       if (messageText.startsWith('/x ')) {
-        if (await isUserAuthorized(userId, username)) {
+        if (await isUserAuthorized(userId, username, chatId)) {
           await handleHideCardCommand(bot, msg);
         } else {
           bot.sendMessage(chatId, "您无权使用此命令!");
@@ -176,7 +176,7 @@ const handleMessage = async (bot, msg, cache) => {
       }
       
       if (messageText.startsWith('/sx ')) {
-        if (await isUserAuthorized(userId, username)) {
+        if (await isUserAuthorized(userId, username, chatId)) {
           await handleShowCardCommand(bot, msg);
         } else {
           bot.sendMessage(chatId, "您无权使用此命令!");
@@ -185,7 +185,7 @@ const handleMessage = async (bot, msg, cache) => {
       }
       
       if (messageText === '/hiddenCards') {
-        if (await isUserAuthorized(userId, username)) {
+        if (await isUserAuthorized(userId, username, chatId)) {
           await handleListHiddenCardsCommand(bot, msg);
         } else {
           bot.sendMessage(chatId, "您无权使用此命令!");
@@ -194,7 +194,7 @@ const handleMessage = async (bot, msg, cache) => {
       }
       
       if (messageText.startsWith('/delete')) {
-        if (await isUserAuthorized(userId, username)) {
+        if (await isUserAuthorized(userId, username, chatId)) {
           await handleDeleteCommand(bot, msg);
         } else {
           bot.sendMessage(chatId, "您无权使用此命令!");
@@ -217,7 +217,7 @@ const handleMessage = async (bot, msg, cache) => {
       }
       
       if (messageText === '/users') {
-        if (await isUserAuthorized(userId, username)) {
+        if (await isUserAuthorized(userId, username, chatId)) {
           await handleListUsersCommand(bot, msg);
         } else {
           bot.sendMessage(chatId, "您没有权限查看用户列表。");
@@ -229,11 +229,20 @@ const handleMessage = async (bot, msg, cache) => {
         await handleReportCommand(bot, chatId, firstName);
         return;
       }
+      
+      if (messageText.startsWith('/setowner')) {
+        if (await isUserOwner(userId)) {
+          await handleSetOwnerCommand(bot, msg);
+        } else {
+          bot.sendMessage(chatId, "⛔ 只有机器人所有者才能使用此命令！");
+        }
+        return;
+      }
     }
     
     // Xử lý tin nhắn + và -
     if (messageText.startsWith('+')) {
-      if (await isUserAuthorized(userId, username)) {
+      if (await isUserAuthorized(userId, username, chatId)) {
         await handlePlusCommand(bot, msg);
       } else {
         bot.sendMessage(chatId, "您无权使用此命令!");
@@ -242,7 +251,7 @@ const handleMessage = async (bot, msg, cache) => {
     }
     
     if (messageText.startsWith('-')) {
-      if (await isUserAuthorized(userId, username)) {
+      if (await isUserAuthorized(userId, username, chatId)) {
         await handleMinusCommand(bot, msg);
       } else {
         bot.sendMessage(chatId, "您无权使用此命令!");
@@ -316,16 +325,22 @@ const isUserOwner = async (userId) => {
 };
 
 // Hàm kiểm tra quyền hạn sử dụng (owner hoặc allowed)
-const isUserAuthorized = async (userId, username) => {
+const isUserAuthorized = async (userId, username, chatId) => {
   try {
     const user = await User.findOne({ 
       $or: [
         { userId: userId.toString() },
-        { username: username.toLowerCase() }
+        { username: username }
       ]
     });
     
-    return user && (user.isOwner || user.isAllowed);
+    if (!user) return false;
+    
+    // If user is owner, they're authorized in all groups
+    if (user.isOwner) return true;
+    
+    // For global permission (backwards compatibility) or if they have permission in this specific group
+    return user.isAllowed || (user.allowedGroups && user.allowedGroups.includes(chatId.toString()));
   } catch (error) {
     console.error('Error in isUserAuthorized:', error);
     return false;
@@ -366,7 +381,8 @@ const {
   handleListUsersCommand,
   handleCurrencyUnitCommand,
   handleSetUsdtAddressCommand,
-  handleGetUsdtAddressCommand
+  handleGetUsdtAddressCommand,
+  handleSetOwnerCommand
 } = require('./userCommands');
 
 const {
