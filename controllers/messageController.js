@@ -407,6 +407,16 @@ const handleMessage = async (bot, msg, cache) => {
         }
         return;
       }
+      
+      if (messageText.startsWith('/markdown ')) {
+        await handleMarkdownCommand(bot, msg);
+        return;
+      }
+      
+      if (messageText === '/rmarkdown') {
+        await handleRemoveMarkdownCommand(bot, msg);
+        return;
+      }
     }
     
     // Xử lý tin nhắn + và -
@@ -558,7 +568,9 @@ const {
   handleAddInlineCommand,
   handleRemoveInlineCommand,
   displayInlineButtons,
-  handleGetUsdtAddressCommand
+  handleGetUsdtAddressCommand,
+  handleMarkdownCommand,
+  handleRemoveMarkdownCommand
 } = require('./userCommands');
 
 const {

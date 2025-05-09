@@ -953,6 +953,93 @@ const handleInlineButtonCallback = async (bot, callbackQuery) => {
   }
 };
 
+/**
+ * Xử lý lệnh thêm markdown link (/markdown)
+ */
+const handleMarkdownCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const messageText = msg.text;
+    
+    // Chỉ Admin và Owner có quyền thêm markdown
+    if (!await isUserAdmin(userId)) {
+      bot.sendMessage(chatId, "⛔ 只有机器人所有者和管理员才能添加markdown链接！");
+      return;
+    }
+    
+    // Phân tích tin nhắn
+    const parts = messageText.split('/markdown ');
+    if (parts.length !== 2) {
+      bot.sendMessage(chatId, "语法无效。例如: /markdown 点击这里 https://example.com");
+      return;
+    }
+    
+    // Tách text và URL
+    const content = parts[1].trim();
+    const lastSpaceIndex = content.lastIndexOf(' ');
+    if (lastSpaceIndex === -1) {
+      bot.sendMessage(chatId, "请提供文本和URL。例如: /markdown 点击这里 https://example.com");
+      return;
+    }
+    
+    const text = content.substring(0, lastSpaceIndex);
+    const url = content.substring(lastSpaceIndex + 1);
+    
+    // Kiểm tra URL hợp lệ
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      bot.sendMessage(chatId, "URL必须以http://或https://开头");
+      return;
+    }
+    
+    // Lưu markdown vào Config
+    let config = await Config.findOne({ key: 'markdown' });
+    if (!config) {
+      config = new Config({ key: 'markdown' });
+    }
+    
+    config.value = {
+      text: text,
+      url: url
+    };
+    await config.save();
+    
+    bot.sendMessage(chatId, `✅ Markdown链接已添加:\n[${text}](${url})`, { parse_mode: 'Markdown' });
+  } catch (error) {
+    console.error('Error in handleMarkdownCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理添加markdown链接命令时出错。请稍后再试。");
+  }
+};
+
+/**
+ * Xử lý lệnh xóa markdown link (/rmarkdown)
+ */
+const handleRemoveMarkdownCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    
+    // Chỉ Admin và Owner có quyền xóa markdown
+    if (!await isUserAdmin(userId)) {
+      bot.sendMessage(chatId, "⛔ 只有机器人所有者和管理员才能删除markdown链接！");
+      return;
+    }
+    
+    // Xóa markdown từ Config
+    const config = await Config.findOne({ key: 'markdown' });
+    if (!config) {
+      bot.sendMessage(chatId, "⚠️ 没有设置markdown链接");
+      return;
+    }
+    
+    await config.deleteOne();
+    bot.sendMessage(chatId, "✅ Markdown链接已删除");
+  } catch (error) {
+    console.error('Error in handleRemoveMarkdownCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理删除markdown链接命令时出错。请稍后再试。");
+  }
+};
+
 module.exports = {
   handleListUsersCommand,
   handleCurrencyUnitCommand,
