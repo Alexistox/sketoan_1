@@ -2,45 +2,7 @@ const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const Config = require('../models/Config');
-const { formatSmart, formatRateValue, formatTelegramMessage, formatDateUS } = require('../utils/formatter');
-
-/**
- * Lấy nút inline keyboard cho nhóm
- * @param {String} chatId - ID của nhóm
- * @returns {Object|null} - Object chứa cấu hình inline keyboard hoặc null nếu không có
- */
-const getInlineKeyboardForGroup = async (chatId) => {
-  try {
-    // Tìm cấu hình inline buttons cho nhóm
-    const inlineConfig = await Config.findOne({ key: `INLINE_BUTTONS_${chatId}` });
-    
-    if (!inlineConfig) {
-      return null;
-    }
-    
-    let buttons = [];
-    try {
-      buttons = JSON.parse(inlineConfig.value);
-    } catch (error) {
-      console.error('Error parsing inline buttons:', error);
-      return null;
-    }
-    
-    if (buttons.length === 0) {
-      return null;
-    }
-    
-    // Tạo cấu trúc inline keyboard
-    return {
-      inline_keyboard: buttons.map(button => [
-        { text: button.text, callback_data: button.command }
-      ])
-    };
-  } catch (error) {
-    console.error('Error in getInlineKeyboardForGroup:', error);
-    return null;
-  }
-};
+const { formatSmart, formatRateValue, formatTelegramMessage } = require('../utils/formatter');
 
 /**
  * Xử lý lệnh clear (上课) - Reset các giá trị về 0
@@ -98,13 +60,10 @@ const handleClearCommand = async (bot, chatId, userId, senderName) => {
     const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
-    // Lấy inline keyboard cho nhóm (nếu có)
-    const inlineKeyboard = await getInlineKeyboardForGroup(chatId.toString());
-    
     // Tạo response JSON
-    const todayDate = new Date();
+    const todayStr = new Date().toLocaleDateString('vi-VN');
     const responseData = {
-      date: formatDateUS(todayDate),
+      date: todayStr,
       depositData: { entries: [] },
       paymentData: { entries: [] },
       rate: formatRateValue(currentRate) + "%",
@@ -115,16 +74,12 @@ const handleClearCommand = async (bot, chatId, userId, senderName) => {
       paidUSDT: "0",
       remainingUSDT: "0",
       currencyUnit,
-      cards: [], // Empty after clear
-      inlineKeyboard // Thêm inline keyboard
+      cards: [] // Empty after clear
     };
     
     // Format và gửi tin nhắn
-    const formattedResponse = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, formattedResponse.text, { 
-      parse_mode: formattedResponse.parse_mode,
-      reply_markup: formattedResponse.reply_markup
-    });
+    const response = formatTelegramMessage(responseData);
+    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
     
   } catch (error) {
     console.error('Error in handleClearCommand:', error);
@@ -194,17 +149,14 @@ const handleRateCommand = async (bot, msg) => {
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy thông tin giao dịch gần đây
-    const todayDate = new Date();
+    const todayStr = new Date().toLocaleDateString('vi-VN');
     const depositData = await getDepositHistory(chatId);
     const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
-    // Lấy inline keyboard cho nhóm (nếu có)
-    const inlineKeyboard = await getInlineKeyboardForGroup(chatId.toString());
-    
     // Tạo response JSON
     const responseData = {
-      date: formatDateUS(todayDate),
+      date: todayStr,
       depositData,
       paymentData,
       rate: formatRateValue(xValue) + "%",
@@ -215,16 +167,12 @@ const handleRateCommand = async (bot, msg) => {
       paidUSDT: formatSmart(group.usdtPaid),
       remainingUSDT: formatSmart(group.remainingUSDT),
       currencyUnit,
-      cards: cardSummary,
-      inlineKeyboard // Thêm inline keyboard
+      cards: cardSummary
     };
     
     // Format và gửi tin nhắn
-    const formattedResponse = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, formattedResponse.text, {
-      parse_mode: formattedResponse.parse_mode,
-      reply_markup: formattedResponse.reply_markup
-    });
+    const response = formatTelegramMessage(responseData);
+    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
     
   } catch (error) {
     console.error('Error in handleRateCommand:', error);
@@ -294,17 +242,14 @@ const handleExchangeRateCommand = async (bot, msg) => {
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy thông tin giao dịch gần đây
-    const todayDate = new Date();
+    const todayStr = new Date().toLocaleDateString('vi-VN');
     const depositData = await getDepositHistory(chatId);
     const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
-    // Lấy inline keyboard cho nhóm (nếu có)
-    const inlineKeyboard = await getInlineKeyboardForGroup(chatId.toString());
-    
     // Tạo response JSON
     const responseData = {
-      date: formatDateUS(todayDate),
+      date: todayStr,
       depositData,
       paymentData,
       rate: formatRateValue(group.rate) + "%",
@@ -315,16 +260,12 @@ const handleExchangeRateCommand = async (bot, msg) => {
       paidUSDT: formatSmart(group.usdtPaid),
       remainingUSDT: formatSmart(group.remainingUSDT),
       currencyUnit,
-      cards: cardSummary,
-      inlineKeyboard // Thêm inline keyboard
+      cards: cardSummary
     };
     
     // Format và gửi tin nhắn
-    const formattedResponse = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, formattedResponse.text, {
-      parse_mode: formattedResponse.parse_mode,
-      reply_markup: formattedResponse.reply_markup
-    });
+    const response = formatTelegramMessage(responseData);
+    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
     
   } catch (error) {
     console.error('Error in handleExchangeRateCommand:', error);
@@ -395,17 +336,14 @@ const handleDualRateCommand = async (bot, msg) => {
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy thông tin giao dịch gần đây
-    const todayDate = new Date();
+    const todayStr = new Date().toLocaleDateString('vi-VN');
     const depositData = await getDepositHistory(chatId);
     const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
-    // Lấy inline keyboard cho nhóm (nếu có)
-    const inlineKeyboard = await getInlineKeyboardForGroup(chatId.toString());
-    
     // Tạo response JSON
     const responseData = {
-      date: formatDateUS(todayDate),
+      date: todayStr,
       depositData,
       paymentData,
       rate: formatRateValue(newRate) + "%",
@@ -416,16 +354,12 @@ const handleDualRateCommand = async (bot, msg) => {
       paidUSDT: formatSmart(group.usdtPaid),
       remainingUSDT: formatSmart(group.remainingUSDT),
       currencyUnit,
-      cards: cardSummary,
-      inlineKeyboard // Thêm inline keyboard
+      cards: cardSummary
     };
     
     // Format và gửi tin nhắn
-    const formattedResponse = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, formattedResponse.text, {
-      parse_mode: formattedResponse.parse_mode,
-      reply_markup: formattedResponse.reply_markup
-    });
+    const response = formatTelegramMessage(responseData);
+    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
     
   } catch (error) {
     console.error('Error in handleDualRateCommand:', error);
@@ -503,23 +437,22 @@ const getDepositHistory = async (chatId) => {
     if (transactions.length === 0) return { entries: [] };
     
     // Format lại các chi tiết với messageId và senderName
-    // Gán ID theo thứ tự giao dịch
     const entries = transactions.map((t, index) => {
       return {
-        id: index + 1, // ID theo thứ tự trong mảng
         details: t.details,
         messageId: t.messageId || null,
         chatLink: t.messageId ? `https://t.me/c/${chatId.toString().replace('-100', '')}/${t.messageId}` : null,
         timestamp: t.timestamp,
-        senderName: t.senderName || ''
+        senderName: t.senderName || '',
+        id: index + 1 // Adding sequential ID starting from 1
       };
     });
     
-    // Chỉ lấy 6 giao dịch gần đây nhất nếu có quá nhiều giao dịch
-    return { entries: entries.slice(-6), totalCount: entries.length };
+    // Lấy 6 giao dịch gần đây nhất
+    return { entries: entries.slice(-6) };
   } catch (error) {
     console.error('Error in getDepositHistory:', error);
-    return { entries: [], totalCount: 0 };
+    return { entries: [] };
   }
 };
 
@@ -545,23 +478,22 @@ const getPaymentHistory = async (chatId) => {
     if (transactions.length === 0) return { entries: [] };
     
     // Format lại các chi tiết với messageId và senderName
-    // Gán ID theo thứ tự giao dịch
     const entries = transactions.map((t, index) => {
       return {
-        id: index + 1, // ID theo thứ tự trong mảng
         details: t.details,
         messageId: t.messageId || null,
         chatLink: t.messageId ? `https://t.me/c/${chatId.toString().replace('-100', '')}/${t.messageId}` : null,
         timestamp: t.timestamp,
-        senderName: t.senderName || ''
+        senderName: t.senderName || '',
+        id: index + 1 // Adding sequential ID starting from 1
       };
     });
     
-    // Chỉ lấy 3 giao dịch gần đây nhất nếu có quá nhiều giao dịch
-    return { entries: entries.slice(-3), totalCount: entries.length };
+    // Lấy 3 giao dịch gần đây nhất
+    return { entries: entries.slice(-3) };
   } catch (error) {
     console.error('Error in getPaymentHistory:', error);
-    return { entries: [], totalCount: 0 };
+    return { entries: [] };
   }
 };
 

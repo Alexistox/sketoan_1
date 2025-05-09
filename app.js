@@ -7,7 +7,6 @@ const NodeCache = require('node-cache');
 
 // Import controllers và utils
 const { handleMessage } = require('./controllers/messageController');
-const { handleInlineButtonCallback } = require('./controllers/userCommands');
 const { connectDB } = require('./config/db');
 
 // Khởi tạo cache
@@ -31,15 +30,6 @@ bot.on('message', async (msg) => {
   } catch (error) {
     console.error('Error handling message:', error);
     bot.sendMessage(msg.chat.id, "处理消息时出错。请稍后再试。");
-  }
-});
-
-// Xử lý callback query từ inline keyboard
-bot.on('callback_query', async (callbackQuery) => {
-  try {
-    await handleInlineButtonCallback(bot, callbackQuery);
-  } catch (error) {
-    console.error('Error handling callback query:', error);
   }
 });
 

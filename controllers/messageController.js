@@ -68,7 +68,7 @@ const handleMessage = async (bot, msg, cache) => {
     await checkAndRegisterUser(userId, username, firstName, lastName);
     
     // Xử lý các lệnh tiếng Trung
-    if (messageText === '上课' || messageText === '开始新账单') {
+    if (messageText === '上课') {
       // Kiểm tra quyền Operator
       if (await isUserOperator(userId, chatId)) {
         await handleClearCommand(bot, chatId, userId, firstName);
@@ -79,7 +79,6 @@ const handleMessage = async (bot, msg, cache) => {
     }
     
     if (messageText === '结束') {
-      // Xử lý "结束" giống như "/report"
       await handleReportCommand(bot, chatId, firstName);
       return;
     }
@@ -104,7 +103,7 @@ const handleMessage = async (bot, msg, cache) => {
       return;
     }
     
-    if (messageText.startsWith('下发') || messageText.startsWith('%')) {
+    if (messageText.startsWith('下发')) {
       // Kiểm tra quyền Operator
       if (await isUserOperator(userId, chatId)) {
         await handlePercentCommand(bot, msg);
@@ -114,48 +113,8 @@ const handleMessage = async (bot, msg, cache) => {
       return;
     }
     
-    // Kiểm tra lệnh 价格 (chỉ khi nó là từ độc lập, không phải một phần của từ khác)
-    if (messageText === '价格' || 
-        messageText.startsWith('价格 ') || 
-        messageText.startsWith('价格/') || 
-        messageText.startsWith('价格:')) {
-      // Kiểm tra quyền Operator
-      if (await isUserOperator(userId, chatId)) {
-        // Chuyển đổi tin nhắn để sử dụng lệnh /d
-        const modifiedMsg = { ...msg };
-        if (messageText === '价格') {
-          modifiedMsg.text = '/d';
-        } else {
-          modifiedMsg.text = '/d' + messageText.substring(2);
-        }
-        await handleDualRateCommand(bot, modifiedMsg);
-      } else {
-        bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
-      }
-      return;
-    }
-    
-    // Lệnh 撤销账单 (tương đương /skip)
-    if (messageText.startsWith('撤销账单')) {
-      // Kiểm tra quyền Operator
-      if (await isUserOperator(userId, chatId)) {
-        // Chuyển đổi tin nhắn để sử dụng lệnh /skip
-        const modifiedMsg = { ...msg };
-        if (messageText === '撤销账单') {
-          bot.sendMessage(chatId, "指令无效。格式为：撤销账单 [ID] 例如: 撤销账单 3 或 撤销账单 !2");
-          return;
-        } else {
-          modifiedMsg.text = '/skip' + messageText.substring(4);
-        }
-        await handleSkipCommand(bot, modifiedMsg);
-      } else {
-        bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
-      }
-      return;
-    }
-    
     // Lệnh quản lý operators
-    if (messageText.startsWith('设置操作人')) {
+    if (messageText.startsWith('加操作人')) {
       // Kiểm tra quyền Admin
       if (await isUserAdmin(userId)) {
         await handleAddOperatorCommand(bot, msg);
@@ -165,7 +124,7 @@ const handleMessage = async (bot, msg, cache) => {
       return;
     }
     
-    if (messageText.startsWith('移除操作人') || messageText.startsWith('删除操作')) {
+    if (messageText.startsWith('移除操作人')) {
       // Kiểm tra quyền Admin
       if (await isUserAdmin(userId)) {
         await handleRemoveOperatorCommand(bot, msg);
@@ -205,12 +164,6 @@ const handleMessage = async (bot, msg, cache) => {
       
       if (messageText === '/admins') {
         await handleListAdminsCommand(bot, msg);
-        return;
-      }
-      
-      // Lệnh liệt kê danh sách nhóm
-      if (messageText === '/listgroups') {
-        await handleListGroupsCommand(bot, msg);
         return;
       }
       
@@ -305,37 +258,6 @@ const handleMessage = async (bot, msg, cache) => {
         // Kiểm tra quyền Operator
         if (await isUserOperator(userId, chatId)) {
           await handleDeleteCommand(bot, msg);
-        } else {
-          bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
-        }
-        return;
-      }
-      
-      // Lệnh quản lý inline buttons
-      if (messageText.startsWith('/inline ')) {
-        // Kiểm tra quyền Operator
-        if (await isUserOperator(userId, chatId)) {
-          await handleAddInlineCommand(bot, msg);
-        } else {
-          bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
-        }
-        return;
-      }
-      
-      if (messageText.startsWith('/removeinline ')) {
-        // Kiểm tra quyền Operator
-        if (await isUserOperator(userId, chatId)) {
-          await handleRemoveInlineCommand(bot, msg);
-        } else {
-          bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
-        }
-        return;
-      }
-      
-      if (messageText === '/buttons') {
-        // Kiểm tra quyền Operator
-        if (await isUserOperator(userId, chatId)) {
-          await displayInlineButtons(bot, chatId);
         } else {
           bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
         }
@@ -518,11 +440,7 @@ const {
   handleListAdminsCommand,
   handleAddOperatorInGroupCommand,
   handleRemoveOperatorInGroupCommand,
-  handleListOperatorsCommand,
-  handleListGroupsCommand,
-  handleAddInlineCommand,
-  handleRemoveInlineCommand,
-  displayInlineButtons
+  handleListOperatorsCommand
 } = require('./userCommands');
 
 const {

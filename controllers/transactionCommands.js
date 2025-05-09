@@ -2,7 +2,7 @@ const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const Config = require('../models/Config');
-const { formatSmart, formatRateValue, formatTelegramMessage, isSingleNumber, formatDateUS } = require('../utils/formatter');
+const { formatSmart, formatRateValue, formatTelegramMessage, isSingleNumber } = require('../utils/formatter');
 const { getDepositHistory, getPaymentHistory, getCardSummary } = require('./groupCommands');
 
 /**
@@ -46,12 +46,6 @@ const handlePlusCommand = async (bot, msg) => {
       return;
     }
     
-    // Ignore zero-value transactions
-    if (amountVND === 0) {
-      bot.sendMessage(chatId, "金额为零，不处理。");
-      return;
-    }
-    
     // Tìm hoặc tạo group
     let group = await Group.findOne({ chatId: chatId.toString() });
     if (!group) {
@@ -83,9 +77,9 @@ const handlePlusCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `${new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })} +${formatSmart(amountVND)} (${cardCode}) = ${formatSmart(newUSDT)} ${currencyUnit}`;
+      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} +${formatSmart(amountVND)} (${cardCode}) = ${formatSmart(newUSDT)} ${currencyUnit}`;
     } else {
-      details = `${new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })} +${formatSmart(amountVND)} = ${formatSmart(newUSDT)} ${currencyUnit}`;
+      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} +${formatSmart(amountVND)} = ${formatSmart(newUSDT)} ${currencyUnit}`;
     }
     
     // Lưu giao dịch mới
@@ -137,14 +131,14 @@ const handlePlusCommand = async (bot, msg) => {
     }
     
     // Lấy thông tin giao dịch gần đây
-    const todayDate = new Date();
+    const todayStr = new Date().toLocaleDateString('vi-VN');
     const depositData = await getDepositHistory(chatId);
     const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
-      date: formatDateUS(todayDate),
+      date: todayStr,
       depositData,
       paymentData,
       rate: formatRateValue(xValue) + "%",
@@ -212,12 +206,6 @@ const handleMinusCommand = async (bot, msg) => {
       return;
     }
     
-    // Ignore zero-value transactions
-    if (amountVND === 0) {
-      bot.sendMessage(chatId, "金额为零，不处理。");
-      return;
-    }
-    
     // Tìm hoặc tạo group
     let group = await Group.findOne({ chatId: chatId.toString() });
     if (!group) {
@@ -249,9 +237,9 @@ const handleMinusCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `${new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })} -${formatSmart(amountVND)} (${cardCode}) = -${formatSmart(minusUSDT)} ${currencyUnit}`;
+      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} -${formatSmart(amountVND)} (${cardCode}) = -${formatSmart(minusUSDT)} ${currencyUnit}`;
     } else {
-      details = `${new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })} -${formatSmart(amountVND)} = -${formatSmart(minusUSDT)} ${currencyUnit}`;
+      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} -${formatSmart(amountVND)} = -${formatSmart(minusUSDT)} ${currencyUnit}`;
     }
     
     // Lưu giao dịch mới
@@ -300,14 +288,14 @@ const handleMinusCommand = async (bot, msg) => {
     }
     
     // Lấy thông tin giao dịch gần đây
-    const todayDate = new Date();
+    const todayStr = new Date().toLocaleDateString('vi-VN');
     const depositData = await getDepositHistory(chatId);
     const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
-      date: formatDateUS(todayDate),
+      date: todayStr,
       depositData,
       paymentData,
       rate: formatRateValue(xValue) + "%",
@@ -336,7 +324,7 @@ const handleMinusCommand = async (bot, msg) => {
 };
 
 /**
- * Xử lý lệnh thanh toán (下发 hoặc %)
+ * Xử lý lệnh thanh toán (下发)
  */
 const handlePercentCommand = async (bot, msg) => {
   try {
@@ -345,19 +333,10 @@ const handlePercentCommand = async (bot, msg) => {
     const messageText = msg.text;
     const messageId = msg.message_id.toString();
     
-    // Phân tích tin nhắn - hỗ trợ cả 下发 và % prefix
-    let parts;
-    if (messageText.startsWith('下发')) {
-      parts = messageText.split('下发');
-    } else if (messageText.startsWith('%')) {
-      parts = messageText.split('%');
-    } else {
-      bot.sendMessage(chatId, "指令无效。格式为：下发数字 (USDT) 或 %数字 (USDT) 或 下发数字 [卡号] 或 %数字 [卡号]");
-      return;
-    }
-    
+    // Phân tích tin nhắn
+    const parts = messageText.split('下发');
     if (parts.length !== 2) {
-      bot.sendMessage(chatId, "指令无效。格式为：下发数字 (USDT) 或 %数字 (USDT) 或 下发数字 [卡号] 或 %数字 [卡号]");
+      bot.sendMessage(chatId, "指令无效。格式为：下发数字 (USDT) 或 下发数字 [卡号]");
       return;
     }
     
@@ -381,12 +360,6 @@ const handlePercentCommand = async (bot, msg) => {
     
     if (isNaN(payUSDT)) {
       bot.sendMessage(chatId, "USDT金额无效。");
-      return;
-    }
-    
-    // Ignore zero-value transactions
-    if (payUSDT === 0) {
-      bot.sendMessage(chatId, "金额为零，不处理。");
       return;
     }
     
@@ -415,9 +388,9 @@ const handlePercentCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `${new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })} +${formatSmart(payUSDT)} ${currencyUnit} (${cardCode})`;
+      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} +${formatSmart(payUSDT)} ${currencyUnit} (${cardCode})`;
     } else {
-      details = `${new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })} +${formatSmart(payUSDT)} ${currencyUnit}`;
+      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} +${formatSmart(payUSDT)} ${currencyUnit}`;
     }
     
     // Lưu giao dịch mới
@@ -458,14 +431,14 @@ const handlePercentCommand = async (bot, msg) => {
     }
     
     // Lấy thông tin giao dịch gần đây
-    const todayDate = new Date();
+    const todayStr = new Date().toLocaleDateString('vi-VN');
     const depositData = await getDepositHistory(chatId);
     const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
-      date: formatDateUS(todayDate),
+      date: todayStr,
       depositData,
       paymentData,
       rate: formatRateValue(group.rate) + "%",
@@ -560,7 +533,7 @@ const handleSkipCommand = async (bot, msg) => {
       return;
     }
     
-    // Lấy giao dịch cần skip - vì ID là số thứ tự trong mảng (bắt đầu từ 1), nên cần trừ 1
+    // Lấy giao dịch cần skip
     const transaction = transactions[id - 1];
     
     // Bắt đầu xử lý skip dựa trên loại giao dịch
@@ -628,7 +601,7 @@ const handleSkipCommand = async (bot, msg) => {
     await skipTransaction.save();
     
     // Lấy thông tin giao dịch gần đây sau khi skip
-    const todayDate = new Date();
+    const todayStr = new Date().toLocaleDateString('vi-VN');
     const depositData = await getDepositHistory(chatId);
     const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
@@ -638,7 +611,7 @@ const handleSkipCommand = async (bot, msg) => {
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     const responseData = {
-      date: formatDateUS(todayDate),
+      date: todayStr,
       depositData,
       paymentData,
       rate: formatRateValue(group.rate) + "%",

@@ -2,46 +2,8 @@ const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const Config = require('../models/Config');
-const { formatSmart, formatRateValue, formatTelegramMessage, isTrc20Address, formatDateUS } = require('../utils/formatter');
+const { formatSmart, formatRateValue, formatTelegramMessage, isTrc20Address } = require('../utils/formatter');
 const { getDepositHistory, getPaymentHistory, getCardSummary } = require('./groupCommands');
-
-/**
- * Lấy nút inline keyboard cho nhóm
- * @param {String} chatId - ID của nhóm
- * @returns {Object|null} - Object chứa cấu hình inline keyboard hoặc null nếu không có
- */
-const getInlineKeyboardForGroup = async (chatId) => {
-  try {
-    // Tìm cấu hình inline buttons cho nhóm
-    const inlineConfig = await Config.findOne({ key: `INLINE_BUTTONS_${chatId}` });
-    
-    if (!inlineConfig) {
-      return null;
-    }
-    
-    let buttons = [];
-    try {
-      buttons = JSON.parse(inlineConfig.value);
-    } catch (error) {
-      console.error('Error parsing inline buttons:', error);
-      return null;
-    }
-    
-    if (buttons.length === 0) {
-      return null;
-    }
-    
-    // Tạo cấu trúc inline keyboard
-    return {
-      inline_keyboard: buttons.map(button => [
-        { text: button.text, callback_data: button.command }
-      ])
-    };
-  } catch (error) {
-    console.error('Error in getInlineKeyboardForGroup:', error);
-    return null;
-  }
-};
 
 /**
  * Xử lý lệnh tính toán USDT (/t)
@@ -84,7 +46,7 @@ const handleCalculateUsdtCommand = async (bot, msg) => {
     // Gửi kết quả
     bot.sendMessage(
       chatId,
-      `🔄 ${formatSmart(amount)} ➡️ ${currencyUnit} ${formatSmart(usdtValue)}\n` +
+      `🔄 VND ${formatSmart(amount)} ➡️ ${currencyUnit} ${formatSmart(usdtValue)}\n` +
       `(汇率: ${formatRateValue(yValue)}, 费率: ${formatRateValue(xValue)}%)`
     );
   } catch (error) {
@@ -134,7 +96,7 @@ const handleCalculateVndCommand = async (bot, msg) => {
     // Gửi kết quả
     bot.sendMessage(
       chatId,
-      `🔄 ${currencyUnit} ${formatSmart(amount)} ➡️ ${formatSmart(vndValue)}\n` +
+      `🔄 ${currencyUnit} ${formatSmart(amount)} ➡️ VND ${formatSmart(vndValue)}\n` +
       `(汇率: ${formatRateValue(yValue)}, 费率: ${formatRateValue(xValue)}%)`
     );
   } catch (error) {
@@ -205,67 +167,17 @@ const handleReportCommand = async (bot, chatId, senderName) => {
     const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
-    // Lấy thông tin tất cả các giao dịch trong ngày
-    const todayDate = new Date();
-    const lastClearDate = group.lastClearDate;
-    
-    // Lấy tất cả các giao dịch deposit/withdraw
-    const depositTransactions = await Transaction.find({
-      chatId: chatId.toString(),
-      type: { $in: ['deposit', 'withdraw'] },
-      timestamp: { $gt: lastClearDate },
-      skipped: { $ne: true }
-    }).sort({ timestamp: 1 });
-    
-    // Lấy tất cả các giao dịch payment
-    const paymentTransactions = await Transaction.find({
-      chatId: chatId.toString(),
-      type: 'payment',
-      timestamp: { $gt: lastClearDate },
-      skipped: { $ne: true }
-    }).sort({ timestamp: 1 });
-    
-    // Format dữ liệu giao dịch deposit
-    const depositEntries = depositTransactions.map((t, index) => {
-      return {
-        id: index + 1,
-        details: t.details,
-        messageId: t.messageId || null,
-        chatLink: t.messageId ? `https://t.me/c/${chatId.toString().replace('-100', '')}/${t.messageId}` : null,
-        timestamp: t.timestamp,
-        senderName: t.senderName || ''
-      };
-    });
-    
-    // Format dữ liệu giao dịch payment
-    const paymentEntries = paymentTransactions.map((t, index) => {
-      return {
-        id: index + 1,
-        details: t.details,
-        messageId: t.messageId || null,
-        chatLink: t.messageId ? `https://t.me/c/${chatId.toString().replace('-100', '')}/${t.messageId}` : null,
-        timestamp: t.timestamp,
-        senderName: t.senderName || ''
-      };
-    });
-    
-    // Lấy thông tin thẻ
+    // Lấy thông tin giao dịch gần đây
+    const todayStr = new Date().toLocaleDateString('vi-VN');
+    const depositData = await getDepositHistory(chatId);
+    const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
-    // Lấy inline keyboard cho nhóm (nếu có)
-    const inlineKeyboard = await getInlineKeyboardForGroup(chatId.toString());
-    
-    // Tạo response JSON với tất cả giao dịch
+    // Tạo response JSON
     const responseData = {
-      date: formatDateUS(todayDate),
-      depositData: { 
-        entries: depositEntries, 
-        totalCount: depositEntries.length 
-      },
-      paymentData: { 
-        entries: paymentEntries, 
-        totalCount: paymentEntries.length 
-      },
+      date: todayStr,
+      depositData,
+      paymentData,
       rate: formatRateValue(group.rate) + "%",
       exchangeRate: formatRateValue(group.exchangeRate),
       totalAmount: formatSmart(group.totalVND),
@@ -273,16 +185,12 @@ const handleReportCommand = async (bot, chatId, senderName) => {
       paidUSDT: formatSmart(group.usdtPaid),
       remainingUSDT: formatSmart(group.remainingUSDT),
       currencyUnit,
-      cards: cardSummary,
-      inlineKeyboard
+      cards: cardSummary
     };
     
     // Format và gửi tin nhắn
-    const formattedResponse = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, formattedResponse.text, {
-      parse_mode: formattedResponse.parse_mode,
-      reply_markup: formattedResponse.reply_markup
-    });
+    const response = formatTelegramMessage(responseData);
+    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
   } catch (error) {
     console.error('Error in handleReportCommand:', error);
     bot.sendMessage(chatId, "处理报告命令时出错。请稍后再试。");
@@ -310,7 +218,7 @@ const handleHelpCommand = async (bot, chatId) => {
 /t [金额] - VND转换为USDT
 /v [金额] - USDT转换为VND
 /u - 显示当前USDT地址
-/report - 显示交易报告
+/report 或 结束 - 显示交易报告
 /users - 列出用户
 /ops - 列出此群组的操作员
 
@@ -320,24 +228,20 @@ const handleHelpCommand = async (bot, chatId) => {
 上课 - 清除当前交易记录
 设置费率 [数值] - 设置费率百分比
 设置汇率 [数值] - 设置汇率
-下发 [数值] - 标记已支付USDT金额
+下发 [数值] 或 % [数值] - 标记已支付USDT金额
 /x [卡号] - 隐藏银行卡
 /sx [卡号] - 显示银行卡
 /hiddenCards - 列出所有隐藏卡
 /delete [ID] - 删除交易记录
 /d [费率] [汇率] - 设置临时费率和汇率
 /m [单位] - 设置货币单位
-/inline [按钮文字]|[命令内容] - 添加自定义按钮
-/removeinline [按钮文字] - 删除自定义按钮
-/buttons - 显示当前所有自定义按钮
 
 *管理员命令:*
 /usdt [地址] - 设置USDT地址
-加操作人 @username - 添加操作员
+设置操作人 @username - 添加操作员
 移除操作人 @username - 移除操作员
 /op @username - 添加操作员
 /removeop @username - 移除操作员
-/listgroups - 列出所有群组
 
 *所有者命令:*
 /ad @username - 添加管理员
