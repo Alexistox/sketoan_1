@@ -45,6 +45,11 @@ const handleMessage = async (bot, msg, cache) => {
     const timestamp = new Date();
     const messageText = msg.text || '';
     
+    // Nếu người dùng gửi '开始', chuyển thành '/st' để dùng chung logic
+    if (messageText === '开始') {
+      msg.text = '/st';
+    }
+    
     // Xử lý thành viên mới tham gia nhóm
     if (msg.new_chat_members) {
       const newMembers = msg.new_chat_members;
@@ -77,7 +82,7 @@ const handleMessage = async (bot, msg, cache) => {
     await checkAndRegisterUser(userId, username, firstName, lastName);
     
     // Xử lý các lệnh tiếng Trung
-    if (messageText === '上课' || messageText === '开始新账单') {
+    if (messageText === '上课') {
       // Kiểm tra quyền Operator
       if (await isUserOperator(userId, chatId)) {
         await handleClearCommand(bot, chatId, userId, firstName);
@@ -438,11 +443,13 @@ const handleMessage = async (bot, msg, cache) => {
         return;
       }
 
-      if (messageText === '/st' || messageText === '开始') {
+      if (messageText === '/st') {
         await handleStartCommand(bot, chatId);
         return;
       }
     }
+    
+   
     
     // Xử lý tin nhắn + và -
     if (messageText.startsWith('+')) {
