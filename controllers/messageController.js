@@ -158,7 +158,10 @@ const handleMessage = async (bot, msg, cache) => {
     if (messageText.startsWith('设置操作人')) {
       // Kiểm tra quyền Admin
       if (await isUserAdmin(userId)) {
-        await handleAddOperatorCommand(bot, msg);
+        // Chuyển đổi tin nhắn để sử dụng lệnh /op
+        const modifiedMsg = { ...msg };
+        modifiedMsg.text = '/op' + messageText.substring(4);
+        await handleAddOperatorInGroupCommand(bot, modifiedMsg);
       } else {
         bot.sendMessage(chatId, "⛔ 只有机器人所有者和管理员才能使用此命令！");
       }
@@ -168,7 +171,14 @@ const handleMessage = async (bot, msg, cache) => {
     if (messageText.startsWith('移除操作人') || messageText.startsWith('删除操作')) {
       // Kiểm tra quyền Admin
       if (await isUserAdmin(userId)) {
-        await handleRemoveOperatorCommand(bot, msg);
+        // Chuyển đổi tin nhắn để sử dụng lệnh /removeop
+        const modifiedMsg = { ...msg };
+        if (messageText.startsWith('删除操作')) {
+          modifiedMsg.text = '/removeop' + messageText.substring(4);
+        } else {
+          modifiedMsg.text = '/removeop' + messageText.substring(4);
+        }
+        await handleRemoveOperatorInGroupCommand(bot, modifiedMsg);
       } else {
         bot.sendMessage(chatId, "⛔ 只有机器人所有者和管理员才能使用此命令！");
       }
