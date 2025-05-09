@@ -68,11 +68,7 @@ const handleMessage = async (bot, msg, cache) => {
     
     // Xử lý các lệnh tiếng Trung
     if (messageText === '上课') {
-      if (await isUserAuthorized(userId, username, chatId)) {
-        await handleClearCommand(bot, chatId, userId, firstName);
-      } else {
-        bot.sendMessage(chatId, "您无权使用此命令!");
-      }
+      await handleClearCommand(bot, chatId, userId, firstName);
       return;
     }
     
@@ -82,37 +78,26 @@ const handleMessage = async (bot, msg, cache) => {
     }
     
     if (messageText.startsWith('设置费率')) {
-      if (await isUserAuthorized(userId, username, chatId)) {
-        await handleRateCommand(bot, msg);
-      } else {
-        bot.sendMessage(chatId, "您无权使用此命令!");
-      }
+      await handleRateCommand(bot, msg);
       return;
     }
     
     if (messageText.startsWith('设置汇率')) {
-      if (await isUserAuthorized(userId, username, chatId)) {
-        await handleExchangeRateCommand(bot, msg);
-      } else {
-        bot.sendMessage(chatId, "您无权使用此命令!");
-      }
+      await handleExchangeRateCommand(bot, msg);
       return;
     }
     
     if (messageText.startsWith('下发')) {
-      if (await isUserAuthorized(userId, username, chatId)) {
-        await handlePercentCommand(bot, msg);
-      } else {
-        bot.sendMessage(chatId, "您无权使用此命令!");
-      }
+      await handlePercentCommand(bot, msg);
       return;
     }
     
+    // Giữ lại kiểm tra owner cho các lệnh quản trị
     if (messageText.startsWith('加操作人')) {
       if (await isUserOwner(userId)) {
         await handleAddOperatorCommand(bot, msg);
       } else {
-        bot.sendMessage(chatId, "您没有权限使用此命令！");
+        bot.sendMessage(chatId, "⛔ 只有机器人所有者才能使用此命令！");
       }
       return;
     }
@@ -121,7 +106,7 @@ const handleMessage = async (bot, msg, cache) => {
       if (await isUserOwner(userId)) {
         await handleRemoveOperatorCommand(bot, msg);
       } else {
-        bot.sendMessage(chatId, "您没有权限使用此命令！");
+        bot.sendMessage(chatId, "⛔ 只有机器人所有者才能使用此命令！");
       }
       return;
     }
@@ -139,11 +124,7 @@ const handleMessage = async (bot, msg, cache) => {
       }
       
       if (messageText.startsWith('/m ')) {
-        if (await isUserAuthorized(userId, username, chatId)) {
-          await handleCurrencyUnitCommand(bot, msg);
-        } else {
-          bot.sendMessage(chatId, "您无权使用此命令!");
-        }
+        await handleCurrencyUnitCommand(bot, msg);
         return;
       }
       
@@ -158,50 +139,31 @@ const handleMessage = async (bot, msg, cache) => {
       }
       
       if (messageText.startsWith('/d ')) {
-        if (await isUserAuthorized(userId, username, chatId)) {
-          await handleDualRateCommand(bot, msg);
-        } else {
-          bot.sendMessage(chatId, "您无权使用此命令!");
-        }
+        await handleDualRateCommand(bot, msg);
         return;
       }
       
       if (messageText.startsWith('/x ')) {
-        if (await isUserAuthorized(userId, username, chatId)) {
-          await handleHideCardCommand(bot, msg);
-        } else {
-          bot.sendMessage(chatId, "您无权使用此命令!");
-        }
+        await handleHideCardCommand(bot, msg);
         return;
       }
       
       if (messageText.startsWith('/sx ')) {
-        if (await isUserAuthorized(userId, username, chatId)) {
-          await handleShowCardCommand(bot, msg);
-        } else {
-          bot.sendMessage(chatId, "您无权使用此命令!");
-        }
+        await handleShowCardCommand(bot, msg);
         return;
       }
       
       if (messageText === '/hiddenCards') {
-        if (await isUserAuthorized(userId, username, chatId)) {
-          await handleListHiddenCardsCommand(bot, msg);
-        } else {
-          bot.sendMessage(chatId, "您无权使用此命令!");
-        }
+        await handleListHiddenCardsCommand(bot, msg);
         return;
       }
       
       if (messageText.startsWith('/delete')) {
-        if (await isUserAuthorized(userId, username, chatId)) {
-          await handleDeleteCommand(bot, msg);
-        } else {
-          bot.sendMessage(chatId, "您无权使用此命令!");
-        }
+        await handleDeleteCommand(bot, msg);
         return;
       }
       
+      // Giữ lại kiểm tra owner cho lệnh thiết lập địa chỉ USDT
       if (messageText.startsWith('/usdt ')) {
         if (await isUserOwner(userId)) {
           await handleSetUsdtAddressCommand(bot, msg);
@@ -217,11 +179,7 @@ const handleMessage = async (bot, msg, cache) => {
       }
       
       if (messageText === '/users') {
-        if (await isUserAuthorized(userId, username, chatId)) {
-          await handleListUsersCommand(bot, msg);
-        } else {
-          bot.sendMessage(chatId, "您没有权限查看用户列表。");
-        }
+        await handleListUsersCommand(bot, msg);
         return;
       }
       
@@ -230,6 +188,7 @@ const handleMessage = async (bot, msg, cache) => {
         return;
       }
       
+      // Giữ lại kiểm tra owner cho lệnh setowner
       if (messageText.startsWith('/setowner')) {
         if (await isUserOwner(userId)) {
           await handleSetOwnerCommand(bot, msg);
@@ -239,6 +198,7 @@ const handleMessage = async (bot, msg, cache) => {
         return;
       }
       
+      // Giữ lại kiểm tra owner cho lệnh remove
       if (messageText.startsWith('/remove ')) {
         if (await isUserOwner(userId)) {
           await handleRemoveCommand(bot, msg);
@@ -248,6 +208,7 @@ const handleMessage = async (bot, msg, cache) => {
         return;
       }
       
+      // Giữ lại kiểm tra owner cho lệnh migrate
       if (messageText === '/migrate') {
         if (await isUserOwner(userId)) {
           await handleMigrateDataCommand(bot, msg);
@@ -260,20 +221,12 @@ const handleMessage = async (bot, msg, cache) => {
     
     // Xử lý tin nhắn + và -
     if (messageText.startsWith('+')) {
-      if (await isUserAuthorized(userId, username, chatId)) {
-        await handlePlusCommand(bot, msg);
-      } else {
-        bot.sendMessage(chatId, "您无权使用此命令!");
-      }
+      await handlePlusCommand(bot, msg);
       return;
     }
     
     if (messageText.startsWith('-')) {
-      if (await isUserAuthorized(userId, username, chatId)) {
-        await handleMinusCommand(bot, msg);
-      } else {
-        bot.sendMessage(chatId, "您无权使用此命令!");
-      }
+      await handleMinusCommand(bot, msg);
       return;
     }
     
@@ -313,8 +266,7 @@ const checkAndRegisterUser = async (userId, username, firstName, lastName) => {
         username,
         firstName,
         lastName,
-        isOwner: isFirstUser,
-        isAllowed: isFirstUser
+        isOwner: isFirstUser
       });
       
       await user.save();
@@ -331,7 +283,7 @@ const checkAndRegisterUser = async (userId, username, firstName, lastName) => {
   }
 };
 
-// Hàm kiểm tra quyền hạn owner
+// Hàm kiểm tra quyền hạn owner - chỉ giữ lại owner cho bảo trì hệ thống
 const isUserOwner = async (userId) => {
   try {
     const user = await User.findOne({ userId: userId.toString() });
@@ -342,47 +294,9 @@ const isUserOwner = async (userId) => {
   }
 };
 
-// Hàm kiểm tra quyền hạn sử dụng (owner hoặc allowed)
+// Hàm kiểm tra quyền hạn sử dụng - luôn trả về true để cho phép tất cả người dùng
 const isUserAuthorized = async (userId, username, chatId) => {
-  try {
-    // Kiểm tra xem người dùng có phải là owner không
-    const user = await User.findOne({ 
-      $or: [
-        { userId: userId.toString() },
-        { username: username }
-      ]
-    });
-    
-    // Nếu là owner, cho phép tất cả
-    if (user && user.isOwner) return true;
-    
-    // Kiểm tra xem người dùng có trong danh sách operators của nhóm không
-    const group = await Group.findOne({ chatId: chatId.toString() });
-    if (group && group.operators) {
-      // Kiểm tra theo userId
-      if (user && group.operators.some(op => op.userId === user.userId)) {
-        return true;
-      }
-      
-      // Kiểm tra theo username
-      if (group.operators.some(op => op.username === username)) {
-        return true;
-      }
-    }
-    
-    // Hỗ trợ ngược - kiểm tra quyền global legacy
-    if (user && user.isAllowed) return true;
-    
-    // Hỗ trợ ngược - kiểm tra quyền theo nhóm legacy
-    if (user && user.allowedGroups && user.allowedGroups.includes(chatId.toString())) {
-      return true;
-    }
-    
-    return false;
-  } catch (error) {
-    console.error('Error in isUserAuthorized:', error);
-    return false;
-  }
+  return true; // Cho phép tất cả người dùng sử dụng bot
 };
 
 // Hàm gửi tin nhắn chào mừng
