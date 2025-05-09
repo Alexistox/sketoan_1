@@ -118,6 +118,11 @@ const handleMessage = async (bot, msg, cache) => {
         return;
       }
       
+      if (messageText === '/help') {
+        await handleHelpCommand(bot, chatId);
+        return;
+      }
+      
       if (messageText === '/off') {
         bot.sendMessage(chatId, "感谢大家的辛勤付出，祝大家发财！ 💰💸🍀");
         return;
@@ -344,7 +349,8 @@ const {
   handleCalculateVndCommand,
   handleMathExpression,
   handleTrc20Address,
-  handleReportCommand
+  handleReportCommand,
+  handleHelpCommand
 } = require('./utilCommands');
 
 const {

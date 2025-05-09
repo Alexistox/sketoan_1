@@ -197,10 +197,70 @@ const handleReportCommand = async (bot, chatId, senderName) => {
   }
 };
 
+/**
+ * Xử lý lệnh trợ giúp (/help)
+ */
+const handleHelpCommand = async (bot, chatId) => {
+  try {
+    const helpMessage = `
+📋 *交易管理机器人使用指南* 📋
+
+*基本命令:*
+/start - 启动机器人
+/help - 显示此帮助信息
+/off - 结束会话消息
+
+*交易记录:*
++ [金额] [备注] - 添加入金记录
+- [金额] [备注] - 添加出金记录
+上课 - 清除当前交易记录
+结束 - 显示交易报告
+
+*设置命令:*
+设置费率 [数值] - 设置费率百分比
+设置汇率 [数值] - 设置汇率
+下发 [数值] - 标记已支付USDT金额
+
+*卡管理:*
+/x [卡号] - 隐藏银行卡
+/sx [卡号] - 显示银行卡
+/hiddenCards - 列出所有隐藏卡
+/delete [ID] - 删除交易记录
+
+*货币转换:*
+/t [金额] - VND转换为USDT
+/v [金额] - USDT转换为VND
+/d [费率] [汇率] - 设置临时费率和汇率
+/m [单位] - 设置货币单位
+
+*USDT地址管理:*
+/usdt [地址] - 设置USDT地址 (仅管理员)
+/u - 显示当前USDT地址
+
+*其他功能:*
+/c - 从图像中提取银行信息
+/report - 显示交易报告
+/users - 列出用户
+
+*数学计算:*
+输入数学表达式如 2+2 进行计算
+
+*TRC20地址识别:*
+输入TRC20地址以格式化显示
+`;
+    
+    bot.sendMessage(chatId, helpMessage, { parse_mode: 'Markdown' });
+  } catch (error) {
+    console.error('Error in handleHelpCommand:', error);
+    bot.sendMessage(chatId, "显示帮助信息时出错。请稍后再试。");
+  }
+};
+
 module.exports = {
   handleCalculateUsdtCommand,
   handleCalculateVndCommand,
   handleMathExpression,
   handleTrc20Address,
-  handleReportCommand
+  handleReportCommand,
+  handleHelpCommand
 }; 
