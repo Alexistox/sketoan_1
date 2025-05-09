@@ -75,9 +75,9 @@ const formatDateUS = (date) => {
 };
 
 /**
- * Tạo tin nhắn telegram không sử dụng markdown
+ * Tạo tin nhắn telegram với định dạng Markdown và hỗ trợ inline keyboard
  * @param {Object} jsonData - Dữ liệu cần format
- * @returns {String} - Chuỗi đã định dạng
+ * @returns {Object} - Object chứa text, parse_mode và reply_markup
  */
 const formatTelegramMessage = (jsonData) => {
   let output = '';
@@ -156,7 +156,7 @@ const formatTelegramMessage = (jsonData) => {
   // Thêm ví dụ nếu có
   let rateInfoWithExample = rateInfo;
   if (jsonData.example) {
-    rateInfoWithExample += `\n例子: 100.000=${jsonData.example} ${jsonData.currencyUnit || 'USDT'}`;
+    rateInfoWithExample += `例子: 100.000=${jsonData.example} ${jsonData.currencyUnit || 'USDT'}`;
   }
   
   output += `${rateInfoWithExample}\n\n`;
@@ -168,10 +168,14 @@ const formatTelegramMessage = (jsonData) => {
   
   // Cards section (if present)
   if (jsonData.cards && jsonData.cards.length > 0) {
-    output += `\n卡额度 💳:\n${jsonData.cards.join("\n")}`;
+    output += `卡额度 💳:\n${jsonData.cards.join("\n")}`;
   }
   
-  return output;
+  return {
+    text: output,
+    parse_mode: 'Markdown',
+    reply_markup: jsonData.inlineKeyboard
+  };
 };
 
 module.exports = {

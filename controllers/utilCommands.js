@@ -6,6 +6,44 @@ const { formatSmart, formatRateValue, formatTelegramMessage, isTrc20Address, for
 const { getDepositHistory, getPaymentHistory, getCardSummary } = require('./groupCommands');
 
 /**
+ * Lấy nút inline keyboard cho nhóm
+ * @param {String} chatId - ID của nhóm
+ * @returns {Object|null} - Object chứa cấu hình inline keyboard hoặc null nếu không có
+ */
+const getInlineKeyboardForGroup = async (chatId) => {
+  try {
+    // Tìm cấu hình inline buttons cho nhóm
+    const inlineConfig = await Config.findOne({ key: `INLINE_BUTTONS_${chatId}` });
+    
+    if (!inlineConfig) {
+      return null;
+    }
+    
+    let buttons = [];
+    try {
+      buttons = JSON.parse(inlineConfig.value);
+    } catch (error) {
+      console.error('Error parsing inline buttons:', error);
+      return null;
+    }
+    
+    if (buttons.length === 0) {
+      return null;
+    }
+    
+    // Tạo cấu trúc inline keyboard
+    return {
+      inline_keyboard: buttons.map(button => [
+        { text: button.text, callback_data: button.command }
+      ])
+    };
+  } catch (error) {
+    console.error('Error in getInlineKeyboardForGroup:', error);
+    return null;
+  }
+};
+
+/**
  * Xử lý lệnh tính toán USDT (/t)
  */
 const handleCalculateUsdtCommand = async (bot, msg) => {
@@ -46,7 +84,7 @@ const handleCalculateUsdtCommand = async (bot, msg) => {
     // Gửi kết quả
     bot.sendMessage(
       chatId,
-      `🔄 VND ${formatSmart(amount)} ➡️ ${currencyUnit} ${formatSmart(usdtValue)}\n` +
+      `🔄 ${formatSmart(amount)} ➡️ ${currencyUnit} ${formatSmart(usdtValue)}\n` +
       `(汇率: ${formatRateValue(yValue)}, 费率: ${formatRateValue(xValue)}%)`
     );
   } catch (error) {
@@ -96,7 +134,7 @@ const handleCalculateVndCommand = async (bot, msg) => {
     // Gửi kết quả
     bot.sendMessage(
       chatId,
-      `🔄 ${currencyUnit} ${formatSmart(amount)} ➡️ VND ${formatSmart(vndValue)}\n` +
+      `🔄 ${currencyUnit} ${formatSmart(amount)} ➡️ ${formatSmart(vndValue)}\n` +
       `(汇率: ${formatRateValue(yValue)}, 费率: ${formatRateValue(xValue)}%)`
     );
   } catch (error) {
@@ -214,6 +252,9 @@ const handleReportCommand = async (bot, chatId, senderName) => {
     // Lấy thông tin thẻ
     const cardSummary = await getCardSummary(chatId);
     
+    // Lấy inline keyboard cho nhóm (nếu có)
+    const inlineKeyboard = await getInlineKeyboardForGroup(chatId.toString());
+    
     // Tạo response JSON với tất cả giao dịch
     const responseData = {
       date: formatDateUS(todayDate),
@@ -232,12 +273,16 @@ const handleReportCommand = async (bot, chatId, senderName) => {
       paidUSDT: formatSmart(group.usdtPaid),
       remainingUSDT: formatSmart(group.remainingUSDT),
       currencyUnit,
-      cards: cardSummary
+      cards: cardSummary,
+      inlineKeyboard
     };
     
     // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+    const formattedResponse = formatTelegramMessage(responseData);
+    bot.sendMessage(chatId, formattedResponse.text, {
+      parse_mode: formattedResponse.parse_mode,
+      reply_markup: formattedResponse.reply_markup
+    });
   } catch (error) {
     console.error('Error in handleReportCommand:', error);
     bot.sendMessage(chatId, "处理报告命令时出错。请稍后再试。");

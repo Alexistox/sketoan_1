@@ -5,6 +5,44 @@ const Config = require('../models/Config');
 const { formatSmart, formatRateValue, formatTelegramMessage, formatDateUS } = require('../utils/formatter');
 
 /**
+ * Lấy nút inline keyboard cho nhóm
+ * @param {String} chatId - ID của nhóm
+ * @returns {Object|null} - Object chứa cấu hình inline keyboard hoặc null nếu không có
+ */
+const getInlineKeyboardForGroup = async (chatId) => {
+  try {
+    // Tìm cấu hình inline buttons cho nhóm
+    const inlineConfig = await Config.findOne({ key: `INLINE_BUTTONS_${chatId}` });
+    
+    if (!inlineConfig) {
+      return null;
+    }
+    
+    let buttons = [];
+    try {
+      buttons = JSON.parse(inlineConfig.value);
+    } catch (error) {
+      console.error('Error parsing inline buttons:', error);
+      return null;
+    }
+    
+    if (buttons.length === 0) {
+      return null;
+    }
+    
+    // Tạo cấu trúc inline keyboard
+    return {
+      inline_keyboard: buttons.map(button => [
+        { text: button.text, callback_data: button.command }
+      ])
+    };
+  } catch (error) {
+    console.error('Error in getInlineKeyboardForGroup:', error);
+    return null;
+  }
+};
+
+/**
  * Xử lý lệnh clear (上课) - Reset các giá trị về 0
  */
 const handleClearCommand = async (bot, chatId, userId, senderName) => {
@@ -60,6 +98,9 @@ const handleClearCommand = async (bot, chatId, userId, senderName) => {
     const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
+    // Lấy inline keyboard cho nhóm (nếu có)
+    const inlineKeyboard = await getInlineKeyboardForGroup(chatId.toString());
+    
     // Tạo response JSON
     const todayDate = new Date();
     const responseData = {
@@ -74,12 +115,16 @@ const handleClearCommand = async (bot, chatId, userId, senderName) => {
       paidUSDT: "0",
       remainingUSDT: "0",
       currencyUnit,
-      cards: [] // Empty after clear
+      cards: [], // Empty after clear
+      inlineKeyboard // Thêm inline keyboard
     };
     
     // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+    const formattedResponse = formatTelegramMessage(responseData);
+    bot.sendMessage(chatId, formattedResponse.text, { 
+      parse_mode: formattedResponse.parse_mode,
+      reply_markup: formattedResponse.reply_markup
+    });
     
   } catch (error) {
     console.error('Error in handleClearCommand:', error);
@@ -154,6 +199,9 @@ const handleRateCommand = async (bot, msg) => {
     const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
+    // Lấy inline keyboard cho nhóm (nếu có)
+    const inlineKeyboard = await getInlineKeyboardForGroup(chatId.toString());
+    
     // Tạo response JSON
     const responseData = {
       date: formatDateUS(todayDate),
@@ -167,12 +215,16 @@ const handleRateCommand = async (bot, msg) => {
       paidUSDT: formatSmart(group.usdtPaid),
       remainingUSDT: formatSmart(group.remainingUSDT),
       currencyUnit,
-      cards: cardSummary
+      cards: cardSummary,
+      inlineKeyboard // Thêm inline keyboard
     };
     
     // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+    const formattedResponse = formatTelegramMessage(responseData);
+    bot.sendMessage(chatId, formattedResponse.text, {
+      parse_mode: formattedResponse.parse_mode,
+      reply_markup: formattedResponse.reply_markup
+    });
     
   } catch (error) {
     console.error('Error in handleRateCommand:', error);
@@ -247,6 +299,9 @@ const handleExchangeRateCommand = async (bot, msg) => {
     const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
+    // Lấy inline keyboard cho nhóm (nếu có)
+    const inlineKeyboard = await getInlineKeyboardForGroup(chatId.toString());
+    
     // Tạo response JSON
     const responseData = {
       date: formatDateUS(todayDate),
@@ -260,12 +315,16 @@ const handleExchangeRateCommand = async (bot, msg) => {
       paidUSDT: formatSmart(group.usdtPaid),
       remainingUSDT: formatSmart(group.remainingUSDT),
       currencyUnit,
-      cards: cardSummary
+      cards: cardSummary,
+      inlineKeyboard // Thêm inline keyboard
     };
     
     // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+    const formattedResponse = formatTelegramMessage(responseData);
+    bot.sendMessage(chatId, formattedResponse.text, {
+      parse_mode: formattedResponse.parse_mode,
+      reply_markup: formattedResponse.reply_markup
+    });
     
   } catch (error) {
     console.error('Error in handleExchangeRateCommand:', error);
@@ -341,6 +400,9 @@ const handleDualRateCommand = async (bot, msg) => {
     const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
+    // Lấy inline keyboard cho nhóm (nếu có)
+    const inlineKeyboard = await getInlineKeyboardForGroup(chatId.toString());
+    
     // Tạo response JSON
     const responseData = {
       date: formatDateUS(todayDate),
@@ -354,12 +416,16 @@ const handleDualRateCommand = async (bot, msg) => {
       paidUSDT: formatSmart(group.usdtPaid),
       remainingUSDT: formatSmart(group.remainingUSDT),
       currencyUnit,
-      cards: cardSummary
+      cards: cardSummary,
+      inlineKeyboard // Thêm inline keyboard
     };
     
     // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+    const formattedResponse = formatTelegramMessage(responseData);
+    bot.sendMessage(chatId, formattedResponse.text, {
+      parse_mode: formattedResponse.parse_mode,
+      reply_markup: formattedResponse.reply_markup
+    });
     
   } catch (error) {
     console.error('Error in handleDualRateCommand:', error);
