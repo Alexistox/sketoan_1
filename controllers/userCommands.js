@@ -330,19 +330,7 @@ const handleListOperatorsCommand = async (bot, msg) => {
   }
 };
 
-/**
- * Xử lý lệnh thêm người điều hành (设置操作人)
- */
-// XÓA TOÀN BỘ HÀM handleAddOperatorCommand VÀ CHÚ THÍCH LIÊN QUAN
 
-/**
- * Xử lý lệnh xóa người điều hành (移除操作人)
- */
-// XÓA TOÀN BỘ HÀM handleRemoveOperatorCommand VÀ CHÚ THÍCH LIÊN QUAN
-
-/**
- * Xử lý lệnh liệt kê người dùng (/users)
- */
 const handleListUsersCommand = async (bot, msg) => {
   try {
     const chatId = msg.chat.id;
