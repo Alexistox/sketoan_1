@@ -876,8 +876,6 @@ const handleInlineButtonCallback = async (bot, callbackQuery) => {
 };
 
 module.exports = {
-  handleAddOperatorCommand,
-  handleRemoveOperatorCommand,
   handleListUsersCommand,
   handleCurrencyUnitCommand,
   handleSetUsdtAddressCommand,
