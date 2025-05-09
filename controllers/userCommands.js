@@ -30,7 +30,7 @@ const handleAddAdminCommand = async (bot, msg) => {
     
     const targetUser = await extractUserFromCommand(parts[1]);
     if (!targetUser) {
-      bot.sendMessage(chatId, "未找到用户。请确保用户名或ID正确。");
+      bot.sendMessage(chatId, "/ad || 添加管理员。");
       return;
     }
     
@@ -75,7 +75,7 @@ const handleRemoveAdminCommand = async (bot, msg) => {
     
     const targetUser = await extractUserFromCommand(parts[1]);
     if (!targetUser) {
-      bot.sendMessage(chatId, "未找到用户。请确保用户名或ID正确。");
+      bot.sendMessage(chatId, "/removead || 删除管理员。");
       return;
     }
     
@@ -166,7 +166,7 @@ const handleAddOperatorInGroupCommand = async (bot, msg) => {
     
     const targetUser = await extractUserFromCommand(parts[1]);
     if (!targetUser) {
-      bot.sendMessage(chatId, "未找到用户。请确保用户名或ID正确。");
+      bot.sendMessage(chatId, "/op || 设置操作。");
       return;
     }
     
@@ -239,7 +239,7 @@ const handleRemoveOperatorInGroupCommand = async (bot, msg) => {
     
     const targetUser = await extractUserFromCommand(parts[1]);
     if (!targetUser) {
-      bot.sendMessage(chatId, "未找到用户。请确保用户名或ID正确。");
+      bot.sendMessage(chatId, "用 /removeop || 删除操作。");
       return;
     }
     
@@ -470,7 +470,11 @@ const handleGetUsdtAddressCommand = async (bot, msg) => {
       return;
     }
     
-    bot.sendMessage(chatId, "💰 USDT-TRC20地址:\n`" + config.value + "`");
+    const responseMsg = "💰 *USDT-TRC20地址* 💰\n\n" +
+                       "`" + config.value + "`\n\n" +
+                       "💵 交易前请向多人确认！ 💱";
+
+    bot.sendMessage(chatId, responseMsg, { parse_mode: 'Markdown' });
   } catch (error) {
     console.error('Error in handleGetUsdtAddressCommand:', error);
     bot.sendMessage(msg.chat.id, "处理获取USDT地址命令时出错。请稍后再试。");

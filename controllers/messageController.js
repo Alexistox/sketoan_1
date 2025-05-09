@@ -440,10 +440,37 @@ const handleMessage = async (bot, msg, cache) => {
     
     // Xử lý địa chỉ TRC20
     if (isTrc20Address(messageText.trim())) {
-      await handleTrc20Address(bot, chatId, messageText.trim(), firstName);
+      // Gửi địa chỉ TRC20 dạng markdown
+      bot.sendMessage(chatId, `TRC20地址:\n\`${messageText.trim()}\``, { parse_mode: 'Markdown' });
       return;
     }
     
+    // Alias cho lệnh admin/operator tiếng Trung
+    if (messageText.startsWith('添加管理员')) {
+      // Chuyển thành /ad
+      const modifiedMsg = { ...msg };
+      const prefixLength = messageText.startsWith('添加管理员') ? 5 : 6;
+      
+      // Đảm bảo luôn có một dấu cách sau /ad
+      modifiedMsg.text = '/ad ' + messageText.substring(prefixLength).trim();
+      await handleAddAdminCommand(bot, modifiedMsg);
+      return;
+    }
+    if (messageText.startsWith('删除管理员')) {
+      // Chuyển thành /removead
+      const modifiedMsg = { ...msg };
+      const prefixLength = messageText.startsWith('删除管理员') ? 5 : 6;
+      // Đảm bảo luôn có một dấu cách sau /removead
+      modifiedMsg.text = '/removead ' + messageText.substring(prefixLength).trim();
+      await handleRemoveAdminCommand(bot, modifiedMsg);
+      return;
+    }
+    if (messageText === '操作人') {
+      // Chuyển thành /ops
+      const modifiedMsg = { ...msg, text: '/ops' };
+      await handleListOperatorsCommand(bot, modifiedMsg);
+      return;
+    }
   } catch (error) {
     console.error('Error in handleMessage:', error);
   }
@@ -515,12 +542,9 @@ const {
 } = require('./cardCommands');
 
 const {
-  handleAddOperatorCommand,
-  handleRemoveOperatorCommand,
   handleListUsersCommand,
   handleCurrencyUnitCommand,
   handleSetUsdtAddressCommand,
-  handleGetUsdtAddressCommand,
   handleSetOwnerCommand,
   handleRemoveCommand,
   handleMigrateDataCommand,
@@ -533,14 +557,14 @@ const {
   handleListGroupsCommand,
   handleAddInlineCommand,
   handleRemoveInlineCommand,
-  displayInlineButtons
+  displayInlineButtons,
+  handleGetUsdtAddressCommand
 } = require('./userCommands');
 
 const {
   handleCalculateUsdtCommand,
   handleCalculateVndCommand,
   handleMathExpression,
-  handleTrc20Address,
   handleReportCommand,
   handleHelpCommand
 } = require('./utilCommands');
