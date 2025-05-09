@@ -3,15 +3,329 @@ const Group = require('../models/Group');
 const Config = require('../models/Config');
 const { isTrc20Address } = require('../utils/formatter');
 const { migrateUserGroupsToOperators } = require('../utils/dataConverter');
+const { isUserOwner, isUserAdmin, isUserOperator, extractUserFromCommand } = require('../utils/permissions');
 
-// Helper function to check if user is owner (copied from messageController to avoid circular dependencies)
-const isUserOwner = async (userId) => {
+/**
+ * Xử lý lệnh thêm admin (/ad) - Chỉ Owner
+ */
+const handleAddAdminCommand = async (bot, msg) => {
   try {
-    const user = await User.findOne({ userId: userId.toString() });
-    return user && user.isOwner;
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const messageText = msg.text;
+    
+    // Chỉ Owner mới có quyền thêm Admin
+    if (!await isUserOwner(userId)) {
+      bot.sendMessage(chatId, "⛔ 只有机器人所有者才能添加管理员！");
+      return;
+    }
+    
+    // Phân tích tin nhắn
+    const parts = messageText.split('/ad ');
+    if (parts.length !== 2) {
+      bot.sendMessage(chatId, "语法无效。例如: /ad @username");
+      return;
+    }
+    
+    const targetUser = await extractUserFromCommand(parts[1]);
+    if (!targetUser) {
+      bot.sendMessage(chatId, "未找到用户。请确保用户名或ID正确。");
+      return;
+    }
+    
+    // Kiểm tra nếu đã là admin
+    if (targetUser.isAdmin) {
+      bot.sendMessage(chatId, `⚠️ 用户 @${targetUser.username} (ID: ${targetUser.userId}) 已经是管理员了。`);
+      return;
+    }
+    
+    // Cập nhật quyền Admin
+    targetUser.isAdmin = true;
+    await targetUser.save();
+    
+    bot.sendMessage(chatId, `✅ 用户 @${targetUser.username} (ID: ${targetUser.userId}) 已被设置为管理员`);
   } catch (error) {
-    console.error('Error in isUserOwner:', error);
-    return false;
+    console.error('Error in handleAddAdminCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理添加管理员命令时出错。请稍后再试。");
+  }
+};
+
+/**
+ * Xử lý lệnh xóa admin (/removead) - Chỉ Owner
+ */
+const handleRemoveAdminCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const messageText = msg.text;
+    
+    // Chỉ Owner mới có quyền xóa Admin
+    if (!await isUserOwner(userId)) {
+      bot.sendMessage(chatId, "⛔ 只有机器人所有者才能移除管理员！");
+      return;
+    }
+    
+    // Phân tích tin nhắn
+    const parts = messageText.split('/removead ');
+    if (parts.length !== 2) {
+      bot.sendMessage(chatId, "语法无效。例如: /removead @username");
+      return;
+    }
+    
+    const targetUser = await extractUserFromCommand(parts[1]);
+    if (!targetUser) {
+      bot.sendMessage(chatId, "未找到用户。请确保用户名或ID正确。");
+      return;
+    }
+    
+    // Kiểm tra nếu là owner
+    if (targetUser.isOwner) {
+      bot.sendMessage(chatId, `⛔ 不能移除机器人所有者的管理员权限！`);
+      return;
+    }
+    
+    // Kiểm tra nếu không phải admin
+    if (!targetUser.isAdmin) {
+      bot.sendMessage(chatId, `⚠️ 用户 @${targetUser.username} (ID: ${targetUser.userId}) 不是管理员。`);
+      return;
+    }
+    
+    // Cập nhật quyền Admin
+    targetUser.isAdmin = false;
+    await targetUser.save();
+    
+    bot.sendMessage(chatId, `✅ 已移除用户 @${targetUser.username} (ID: ${targetUser.userId}) 的管理员权限`);
+  } catch (error) {
+    console.error('Error in handleRemoveAdminCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理移除管理员命令时出错。请稍后再试。");
+  }
+};
+
+/**
+ * Xử lý lệnh liệt kê tất cả admin (/admins) - Chỉ Owner
+ */
+const handleListAdminsCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    
+    // Chỉ Owner mới có quyền xem danh sách Admin
+    if (!await isUserOwner(userId)) {
+      bot.sendMessage(chatId, "⛔ 只有机器人所有者才能查看管理员列表！");
+      return;
+    }
+    
+    // Tìm tất cả admin và owner
+    const admins = await User.find({ 
+      $or: [{ isAdmin: true }, { isOwner: true }]
+    }).sort({ isOwner: -1 }); // Owner hiển thị trước
+    
+    if (admins.length === 0) {
+      bot.sendMessage(chatId, "⚠️ 尚未设置任何管理员或所有者。");
+      return;
+    }
+    
+    // Tạo danh sách hiển thị
+    let message = '👑 管理员列表:\n\n';
+    
+    admins.forEach(admin => {
+      const role = admin.isOwner ? '👑 所有者' : '🔰 管理员';
+      message += `${role}: @${admin.username} (ID: ${admin.userId})\n`;
+    });
+    
+    bot.sendMessage(chatId, message);
+  } catch (error) {
+    console.error('Error in handleListAdminsCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理查看管理员列表命令时出错。请稍后再试。");
+  }
+};
+
+/**
+ * Xử lý lệnh thêm operator (/op) - Admin và Owner
+ */
+const handleAddOperatorInGroupCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const senderName = msg.from.username || msg.from.first_name || 'unknown';
+    const messageText = msg.text;
+    
+    // Chỉ Admin và Owner có quyền thêm Operator
+    if (!await isUserAdmin(userId)) {
+      bot.sendMessage(chatId, "⛔ 只有机器人所有者和管理员才能添加操作员！");
+      return;
+    }
+    
+    // Phân tích tin nhắn
+    const parts = messageText.split('/op ');
+    if (parts.length !== 2) {
+      bot.sendMessage(chatId, "语法无效。例如: /op @username");
+      return;
+    }
+    
+    const targetUser = await extractUserFromCommand(parts[1]);
+    if (!targetUser) {
+      bot.sendMessage(chatId, "未找到用户。请确保用户名或ID正确。");
+      return;
+    }
+    
+    // Tìm hoặc tạo nhóm
+    let group = await Group.findOne({ chatId: chatId.toString() });
+    if (!group) {
+      group = new Group({
+        chatId: chatId.toString(),
+        operators: []
+      });
+    }
+    
+    // Kiểm tra xem đã là operator chưa
+    const existingOperator = group.operators.find(op => op.userId === targetUser.userId);
+    if (existingOperator) {
+      bot.sendMessage(chatId, `⚠️ 用户 @${targetUser.username} (ID: ${targetUser.userId}) 已经是此群组的操作员。`);
+      return;
+    }
+    
+    // Thêm vào danh sách operators
+    group.operators.push({
+      userId: targetUser.userId,
+      username: targetUser.username,
+      dateAdded: new Date()
+    });
+    
+    await group.save();
+    
+    // Cập nhật groupPermissions trong User document
+    const groupPerm = targetUser.groupPermissions.find(p => p.chatId === chatId.toString());
+    if (groupPerm) {
+      groupPerm.isOperator = true;
+    } else {
+      targetUser.groupPermissions.push({
+        chatId: chatId.toString(),
+        isOperator: true
+      });
+    }
+    
+    await targetUser.save();
+    
+    bot.sendMessage(chatId, `✅ 已添加用户 @${targetUser.username} (ID: ${targetUser.userId}) 为此群组的操作员`);
+  } catch (error) {
+    console.error('Error in handleAddOperatorInGroupCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理添加操作员命令时出错。请稍后再试。");
+  }
+};
+
+/**
+ * Xử lý lệnh xóa operator (/removeop) - Admin và Owner
+ */
+const handleRemoveOperatorInGroupCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const messageText = msg.text;
+    
+    // Chỉ Admin và Owner có quyền xóa Operator
+    if (!await isUserAdmin(userId)) {
+      bot.sendMessage(chatId, "⛔ 只有机器人所有者和管理员才能移除操作员！");
+      return;
+    }
+    
+    // Phân tích tin nhắn
+    const parts = messageText.split('/removeop ');
+    if (parts.length !== 2) {
+      bot.sendMessage(chatId, "语法无效。例如: /removeop @username");
+      return;
+    }
+    
+    const targetUser = await extractUserFromCommand(parts[1]);
+    if (!targetUser) {
+      bot.sendMessage(chatId, "未找到用户。请确保用户名或ID正确。");
+      return;
+    }
+    
+    // Tìm thông tin nhóm
+    let group = await Group.findOne({ chatId: chatId.toString() });
+    if (!group || !group.operators || group.operators.length === 0) {
+      bot.sendMessage(chatId, `⚠️ 此群组尚未设置任何操作员。`);
+      return;
+    }
+    
+    // Kiểm tra xem có trong danh sách không
+    const operatorIndex = group.operators.findIndex(op => op.userId === targetUser.userId);
+    if (operatorIndex === -1) {
+      bot.sendMessage(chatId, `⚠️ 用户 @${targetUser.username} (ID: ${targetUser.userId}) 不是此群组的操作员。`);
+      return;
+    }
+    
+    // Kiểm tra nếu là owner/admin
+    if (targetUser.isOwner || targetUser.isAdmin) {
+      bot.sendMessage(chatId, `⛔ 不能移除所有者或管理员的操作员权限！`);
+      return;
+    }
+    
+    // Xóa khỏi danh sách operators
+    group.operators.splice(operatorIndex, 1);
+    await group.save();
+    
+    // Cập nhật groupPermissions trong User document
+    const groupPermIndex = targetUser.groupPermissions.findIndex(p => p.chatId === chatId.toString());
+    if (groupPermIndex !== -1) {
+      targetUser.groupPermissions.splice(groupPermIndex, 1);
+      await targetUser.save();
+    }
+    
+    bot.sendMessage(chatId, `✅ 已移除用户 @${targetUser.username} (ID: ${targetUser.userId}) 的操作员权限`);
+  } catch (error) {
+    console.error('Error in handleRemoveOperatorInGroupCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理移除操作员命令时出错。请稍后再试。");
+  }
+};
+
+/**
+ * Xử lý lệnh liệt kê operators (/ops) - Tất cả
+ */
+const handleListOperatorsCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    
+    // Tìm thông tin nhóm
+    const group = await Group.findOne({ chatId: chatId.toString() });
+    
+    if (!group || !group.operators || group.operators.length === 0) {
+      bot.sendMessage(chatId, `⚠️ 此群组尚未设置任何操作员。`);
+      return;
+    }
+    
+    // Sắp xếp theo thời gian thêm vào, mới nhất lên đầu
+    const sortedOperators = [...group.operators].sort((a, b) => 
+      new Date(b.dateAdded || 0) - new Date(a.dateAdded || 0)
+    );
+    
+    // Tạo danh sách hiển thị
+    let message = '👥 此群组的操作员列表:\n\n';
+    
+    for (const op of sortedOperators) {
+      const user = await User.findOne({ userId: op.userId });
+      let roleBadge = '';
+      
+      if (user) {
+        if (user.isOwner) {
+          roleBadge = '👑';
+        } else if (user.isAdmin) {
+          roleBadge = '🔰';
+        } else {
+          roleBadge = '🔹';
+        }
+      } else {
+        roleBadge = '🔹';
+      }
+      
+      message += `${roleBadge} @${op.username} (ID: ${op.userId})\n`;
+    }
+    
+    bot.sendMessage(chatId, message);
+  } catch (error) {
+    console.error('Error in handleListOperatorsCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理查看操作员列表命令时出错。请稍后再试。");
   }
 };
 
@@ -461,183 +775,6 @@ const handleMigrateDataCommand = async (bot, msg) => {
   }
 };
 
-/**
- * Xử lý lệnh liệt kê admins (/admins)
- */
-const handleListAdminsCommand = async (bot, msg) => {
-  try {
-    const chatId = msg.chat.id;
-    
-    // Tìm tất cả admin và owner
-    const admins = await User.find({ $or: [{ isAdmin: true }, { isOwner: true }] });
-    
-    if (!admins || admins.length === 0) {
-      bot.sendMessage(chatId, "⚠️ 系统中尚未有管理员。");
-      return;
-    }
-    
-    let message = "👮 *系统管理员列表*\n\n";
-    
-    // Hiển thị owners trước
-    const owners = admins.filter(user => user.isOwner);
-    if (owners.length > 0) {
-      message += "👑 *所有者:*\n";
-      owners.forEach((owner, index) => {
-        message += `${index + 1}. @${owner.username}: ${owner.userId}\n`;
-      });
-      message += "\n";
-    }
-    
-    // Hiển thị admins không phải owner
-    const normalAdmins = admins.filter(user => !user.isOwner && user.isAdmin);
-    if (normalAdmins.length > 0) {
-      message += "👮 *管理员:*\n";
-      normalAdmins.forEach((admin, index) => {
-        message += `${index + 1}. @${admin.username}: ${admin.userId}\n`;
-      });
-    }
-    
-    bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
-  } catch (error) {
-    console.error('Error in handleListAdminsCommand:', error);
-    bot.sendMessage(msg.chat.id, "处理列出管理员命令时出错。请稍后再试。");
-  }
-};
-
-/**
- * Xử lý lệnh xóa admin (/removeadmin)
- */
-const handleRemoveAdminCommand = async (bot, msg) => {
-  try {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const messageText = msg.text;
-    
-    // Chỉ Owner mới có quyền xóa Admin
-    if (!await isUserOwner(userId)) {
-      bot.sendMessage(chatId, "⛔ 只有机器人所有者才能移除管理员");
-      return;
-    }
-    
-    // Phân tích username hoặc ID người dùng
-    const parts = messageText.split('/removeadmin ');
-    if (parts.length !== 2) {
-      bot.sendMessage(chatId, "语法无效。例如: /removeadmin @username 或 /removeadmin 123456789");
-      return;
-    }
-    
-    const input = parts[1].trim();
-    const username = input.replace('@', '');
-    
-    if (!input) {
-      bot.sendMessage(chatId, "请指定一个用户名或ID。");
-      return;
-    }
-    
-    // Tìm user theo username hoặc userId
-    let user;
-    if (input === username) {
-      // Tìm theo username
-      user = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, 'i') } });
-    } else {
-      // Tìm theo userId
-      user = await User.findOne({ userId: input });
-    }
-    
-    if (!user) {
-      bot.sendMessage(chatId, "未找到用户。请确保用户名或ID正确。");
-      return;
-    }
-    
-    // Không thể xóa admin là owner
-    if (user.isOwner) {
-      bot.sendMessage(chatId, "⛔ 不能移除机器人所有者！");
-      return;
-    }
-    
-    // Cập nhật quyền Admin
-    user.isAdmin = false;
-    await user.save();
-    
-    bot.sendMessage(chatId, `✅ 用户 @${user.username} (ID: ${user.userId}) 已被移除管理员权限`);
-  } catch (error) {
-    console.error('Error in handleRemoveAdminCommand:', error);
-    bot.sendMessage(msg.chat.id, "处理移除管理员命令时出错。请稍后再试。");
-  }
-};
-
-/**
- * Xử lý lệnh thêm admin (/addadmin)
- */
-const handleAddAdminCommand = async (bot, msg) => {
-  try {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const messageText = msg.text;
-    
-    // Chỉ Owner mới có quyền thêm Admin
-    if (!await isUserOwner(userId)) {
-      bot.sendMessage(chatId, "⛔ 只有机器人所有者才能添加管理员");
-      return;
-    }
-    
-    // Phân tích username hoặc ID người dùng
-    const parts = messageText.split('/addadmin ');
-    if (parts.length !== 2) {
-      bot.sendMessage(chatId, "语法无效。例如: /addadmin @username 或 /addadmin 123456789");
-      return;
-    }
-    
-    const input = parts[1].trim();
-    const username = input.replace('@', '');
-    
-    if (!input) {
-      bot.sendMessage(chatId, "请指定一个用户名或ID。");
-      return;
-    }
-    
-    // Tìm user theo username hoặc userId
-    let user;
-    if (input === username) {
-      // Tìm theo username
-      user = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, 'i') } });
-    } else {
-      // Tìm theo userId
-      user = await User.findOne({ userId: input });
-    }
-    
-    if (!user) {
-      // Tạo user mới nếu chưa tồn tại
-      const uniqueUserId = `user_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-      
-      user = new User({
-        userId: uniqueUserId,
-        username: username,
-        isAdmin: true
-      });
-      
-      await user.save();
-      bot.sendMessage(chatId, `✅ 已创建并添加新用户 @${username} 为管理员`);
-      return;
-    }
-    
-    // Kiểm tra nếu đã là admin
-    if (user.isAdmin) {
-      bot.sendMessage(chatId, `⚠️ 用户 @${user.username} 已经是管理员。`);
-      return;
-    }
-    
-    // Cập nhật quyền Admin
-    user.isAdmin = true;
-    await user.save();
-    
-    bot.sendMessage(chatId, `✅ 用户 @${user.username} (ID: ${user.userId}) 已被设置为管理员`);
-  } catch (error) {
-    console.error('Error in handleAddAdminCommand:', error);
-    bot.sendMessage(msg.chat.id, "处理添加管理员命令时出错。请稍后再试。");
-  }
-};
-
 module.exports = {
   handleAddOperatorCommand,
   handleRemoveOperatorCommand,
@@ -648,7 +785,10 @@ module.exports = {
   handleSetOwnerCommand,
   handleRemoveCommand,
   handleMigrateDataCommand,
-  handleListAdminsCommand,
+  handleAddAdminCommand,
   handleRemoveAdminCommand,
-  handleAddAdminCommand
+  handleListAdminsCommand,
+  handleAddOperatorInGroupCommand,
+  handleRemoveOperatorInGroupCommand,
+  handleListOperatorsCommand
 }; 
