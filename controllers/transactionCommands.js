@@ -47,6 +47,21 @@ const handlePlusCommand = async (bot, msg) => {
       return;
     }
 
+    // Tìm hoặc tạo group
+    let group = await Group.findOne({ chatId: chatId.toString() });
+    if (!group) {
+      bot.sendMessage(chatId, "请设置汇率，费率");
+      return;
+    }
+    // Kiểm tra tỷ giá
+    if (!group.exchangeRate) {
+      bot.sendMessage(chatId, "请设置汇率，费率");
+      return;
+    }
+    // Lấy đơn vị tiền tệ
+    const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
+    const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
+
     // Bỏ qua giao dịch +0
     if (amountVND === 0) {
       // Chỉ hiển thị thông tin hiện tại mà không ghi nhận giao dịch
@@ -85,19 +100,6 @@ const handlePlusCommand = async (bot, msg) => {
     }
    
     
-    // Tìm hoặc tạo group
-    let group = await Group.findOne({ chatId: chatId.toString() });
-    if (!group) {
-      bot.sendMessage(chatId, "请设置汇率，费率");
-      return;
-    }
-    
-    // Kiểm tra tỷ giá
-    if (!group.exchangeRate) {
-      bot.sendMessage(chatId, "请设置汇率，费率");
-      return;
-    }
-    
     // Tính toán giá trị USDT
     const xValue = group.rate;
     const yValue = group.exchangeRate;
@@ -108,10 +110,6 @@ const handlePlusCommand = async (bot, msg) => {
     group.totalUSDT += newUSDT;
     group.remainingUSDT = group.totalUSDT - group.usdtPaid;
     await group.save();
-    
-    // Lấy đơn vị tiền tệ
-    const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
-    const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Tạo chi tiết giao dịch
     let details;
