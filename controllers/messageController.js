@@ -428,6 +428,11 @@ const handleMessage = async (bot, msg, cache) => {
         }
         return;
       }
+
+      if (messageText === '/st' || messageText === '开始') {
+        await handleStartCommand(bot, chatId);
+        return;
+      }
     }
     
     // Xử lý tin nhắn + và -
