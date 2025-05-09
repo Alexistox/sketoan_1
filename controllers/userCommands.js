@@ -461,6 +461,183 @@ const handleMigrateDataCommand = async (bot, msg) => {
   }
 };
 
+/**
+ * Xử lý lệnh liệt kê admins (/admins)
+ */
+const handleListAdminsCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    
+    // Tìm tất cả admin và owner
+    const admins = await User.find({ $or: [{ isAdmin: true }, { isOwner: true }] });
+    
+    if (!admins || admins.length === 0) {
+      bot.sendMessage(chatId, "⚠️ 系统中尚未有管理员。");
+      return;
+    }
+    
+    let message = "👮 *系统管理员列表*\n\n";
+    
+    // Hiển thị owners trước
+    const owners = admins.filter(user => user.isOwner);
+    if (owners.length > 0) {
+      message += "👑 *所有者:*\n";
+      owners.forEach((owner, index) => {
+        message += `${index + 1}. @${owner.username}: ${owner.userId}\n`;
+      });
+      message += "\n";
+    }
+    
+    // Hiển thị admins không phải owner
+    const normalAdmins = admins.filter(user => !user.isOwner && user.isAdmin);
+    if (normalAdmins.length > 0) {
+      message += "👮 *管理员:*\n";
+      normalAdmins.forEach((admin, index) => {
+        message += `${index + 1}. @${admin.username}: ${admin.userId}\n`;
+      });
+    }
+    
+    bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+  } catch (error) {
+    console.error('Error in handleListAdminsCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理列出管理员命令时出错。请稍后再试。");
+  }
+};
+
+/**
+ * Xử lý lệnh xóa admin (/removeadmin)
+ */
+const handleRemoveAdminCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const messageText = msg.text;
+    
+    // Chỉ Owner mới có quyền xóa Admin
+    if (!await isUserOwner(userId)) {
+      bot.sendMessage(chatId, "⛔ 只有机器人所有者才能移除管理员");
+      return;
+    }
+    
+    // Phân tích username hoặc ID người dùng
+    const parts = messageText.split('/removeadmin ');
+    if (parts.length !== 2) {
+      bot.sendMessage(chatId, "语法无效。例如: /removeadmin @username 或 /removeadmin 123456789");
+      return;
+    }
+    
+    const input = parts[1].trim();
+    const username = input.replace('@', '');
+    
+    if (!input) {
+      bot.sendMessage(chatId, "请指定一个用户名或ID。");
+      return;
+    }
+    
+    // Tìm user theo username hoặc userId
+    let user;
+    if (input === username) {
+      // Tìm theo username
+      user = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, 'i') } });
+    } else {
+      // Tìm theo userId
+      user = await User.findOne({ userId: input });
+    }
+    
+    if (!user) {
+      bot.sendMessage(chatId, "未找到用户。请确保用户名或ID正确。");
+      return;
+    }
+    
+    // Không thể xóa admin là owner
+    if (user.isOwner) {
+      bot.sendMessage(chatId, "⛔ 不能移除机器人所有者！");
+      return;
+    }
+    
+    // Cập nhật quyền Admin
+    user.isAdmin = false;
+    await user.save();
+    
+    bot.sendMessage(chatId, `✅ 用户 @${user.username} (ID: ${user.userId}) 已被移除管理员权限`);
+  } catch (error) {
+    console.error('Error in handleRemoveAdminCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理移除管理员命令时出错。请稍后再试。");
+  }
+};
+
+/**
+ * Xử lý lệnh thêm admin (/addadmin)
+ */
+const handleAddAdminCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const messageText = msg.text;
+    
+    // Chỉ Owner mới có quyền thêm Admin
+    if (!await isUserOwner(userId)) {
+      bot.sendMessage(chatId, "⛔ 只有机器人所有者才能添加管理员");
+      return;
+    }
+    
+    // Phân tích username hoặc ID người dùng
+    const parts = messageText.split('/addadmin ');
+    if (parts.length !== 2) {
+      bot.sendMessage(chatId, "语法无效。例如: /addadmin @username 或 /addadmin 123456789");
+      return;
+    }
+    
+    const input = parts[1].trim();
+    const username = input.replace('@', '');
+    
+    if (!input) {
+      bot.sendMessage(chatId, "请指定一个用户名或ID。");
+      return;
+    }
+    
+    // Tìm user theo username hoặc userId
+    let user;
+    if (input === username) {
+      // Tìm theo username
+      user = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, 'i') } });
+    } else {
+      // Tìm theo userId
+      user = await User.findOne({ userId: input });
+    }
+    
+    if (!user) {
+      // Tạo user mới nếu chưa tồn tại
+      const uniqueUserId = `user_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      
+      user = new User({
+        userId: uniqueUserId,
+        username: username,
+        isAdmin: true
+      });
+      
+      await user.save();
+      bot.sendMessage(chatId, `✅ 已创建并添加新用户 @${username} 为管理员`);
+      return;
+    }
+    
+    // Kiểm tra nếu đã là admin
+    if (user.isAdmin) {
+      bot.sendMessage(chatId, `⚠️ 用户 @${user.username} 已经是管理员。`);
+      return;
+    }
+    
+    // Cập nhật quyền Admin
+    user.isAdmin = true;
+    await user.save();
+    
+    bot.sendMessage(chatId, `✅ 用户 @${user.username} (ID: ${user.userId}) 已被设置为管理员`);
+  } catch (error) {
+    console.error('Error in handleAddAdminCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理添加管理员命令时出错。请稍后再试。");
+  }
+};
+
 module.exports = {
   handleAddOperatorCommand,
   handleRemoveOperatorCommand,
@@ -470,5 +647,8 @@ module.exports = {
   handleGetUsdtAddressCommand,
   handleSetOwnerCommand,
   handleRemoveCommand,
-  handleMigrateDataCommand
+  handleMigrateDataCommand,
+  handleListAdminsCommand,
+  handleRemoveAdminCommand,
+  handleAddAdminCommand
 }; 

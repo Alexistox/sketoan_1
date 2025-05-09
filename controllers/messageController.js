@@ -188,6 +188,11 @@ const handleMessage = async (bot, msg, cache) => {
         return;
       }
       
+      if (messageText === '/admins') {
+        await handleListAdminsCommand(bot, msg);
+        return;
+      }
+      
       if (messageText === '/report') {
         await handleReportCommand(bot, chatId, firstName);
         return;
@@ -197,6 +202,26 @@ const handleMessage = async (bot, msg, cache) => {
       if (messageText.startsWith('/setowner')) {
         if (await isUserOwner(userId)) {
           await handleSetOwnerCommand(bot, msg);
+        } else {
+          bot.sendMessage(chatId, "⛔ 只有机器人所有者才能使用此命令！");
+        }
+        return;
+      }
+      
+      // Lệnh thêm admin - chỉ owner mới có quyền
+      if (messageText.startsWith('/addadmin ')) {
+        if (await isUserOwner(userId)) {
+          await handleAddAdminCommand(bot, msg);
+        } else {
+          bot.sendMessage(chatId, "⛔ 只有机器人所有者才能使用此命令！");
+        }
+        return;
+      }
+      
+      // Lệnh xóa admin - chỉ owner mới có quyền
+      if (messageText.startsWith('/removeadmin ')) {
+        if (await isUserOwner(userId)) {
+          await handleRemoveAdminCommand(bot, msg);
         } else {
           bot.sendMessage(chatId, "⛔ 只有机器人所有者才能使用此命令！");
         }
@@ -341,7 +366,10 @@ const {
   handleGetUsdtAddressCommand,
   handleSetOwnerCommand,
   handleRemoveCommand,
-  handleMigrateDataCommand
+  handleMigrateDataCommand,
+  handleListAdminsCommand,
+  handleAddAdminCommand,
+  handleRemoveAdminCommand
 } = require('./userCommands');
 
 const {
