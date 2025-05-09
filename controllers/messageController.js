@@ -47,7 +47,9 @@ const handleMessage = async (bot, msg, cache) => {
     
     // Nếu người dùng gửi '开始', chuyển thành '/st' để dùng chung logic
     if (messageText === '开始') {
-      msg.text = '/st';
+      const modifiedMsg = { ...msg, text: '/st' };
+      await handleStartCommand(bot, chatId);
+      return;
     }
     
     // Xử lý thành viên mới tham gia nhóm
