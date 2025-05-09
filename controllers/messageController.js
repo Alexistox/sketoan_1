@@ -155,13 +155,14 @@ const handleMessage = async (bot, msg, cache) => {
     }
     
     // Lệnh quản lý operators
-    if (messageText.startsWith('设置操作人')) {
+    if (messageText.startsWith('设置操作')) {
       // Kiểm tra quyền Admin
       if (await isUserAdmin(userId)) {
         // Chuyển đổi tin nhắn để sử dụng lệnh /op
         const modifiedMsg = { ...msg };
+        const prefixLength = messageText.startsWith('设置操作') ? 4 : 5;
         // Đảm bảo luôn có một dấu cách sau /op
-        modifiedMsg.text = '/op ' + messageText.substring(4).trim();
+        modifiedMsg.text = '/op ' + messageText.substring(prefixLength).trim();
         await handleAddOperatorInGroupCommand(bot, modifiedMsg);
       } else {
         bot.sendMessage(chatId, "⛔ 只有机器人所有者和管理员才能使用此命令！");
@@ -169,7 +170,7 @@ const handleMessage = async (bot, msg, cache) => {
       return;
     }
     
-    if (messageText.startsWith('移除操作人') || messageText.startsWith('删除操作')) {
+    if (messageText.startsWith('删除操作')) {
       // Kiểm tra quyền Admin
       if (await isUserAdmin(userId)) {
         // Chuyển đổi tin nhắn để sử dụng lệnh /removeop
