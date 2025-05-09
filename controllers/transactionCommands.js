@@ -94,6 +94,7 @@ const handlePlusCommand = async (bot, msg) => {
       limit: cardLimit,
       rate: xValue,
       exchangeRate: yValue,
+      messageId: msg.message_id.toString(),
       timestamp: new Date()
     });
     
@@ -130,15 +131,18 @@ const handlePlusCommand = async (bot, msg) => {
     
     // Lấy thông tin giao dịch gần đây
     const todayStr = new Date().toLocaleDateString('vi-VN');
-    const deposits = await getDepositHistory(chatId);
-    const payments = await getPaymentHistory(chatId);
+    const depositsData = await getDepositHistory(chatId);
+    const paymentsData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
+      chatId: chatId.replace('-100', ''), // Chuyển đổi định dạng chatId cho Telegram link
       date: todayStr,
-      deposits,
-      payments,
+      deposits: depositsData.text,
+      depositsList: depositsData.list,
+      payments: paymentsData.text,
+      paymentsList: paymentsData.list,
       rate: formatRateValue(xValue) + "%",
       exchangeRate: formatRateValue(yValue),
       totalAmount: formatSmart(group.totalVND),
@@ -156,7 +160,7 @@ const handlePlusCommand = async (bot, msg) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+    bot.sendMessage(chatId, response, { parse_mode: 'HTML' });
     
   } catch (error) {
     console.error('Error in handlePlusCommand:', error);
@@ -251,6 +255,7 @@ const handleMinusCommand = async (bot, msg) => {
       cardCode,
       rate: xValue,
       exchangeRate: yValue,
+      messageId: msg.message_id.toString(),
       timestamp: new Date()
     });
     
@@ -285,15 +290,18 @@ const handleMinusCommand = async (bot, msg) => {
     
     // Lấy thông tin giao dịch gần đây
     const todayStr = new Date().toLocaleDateString('vi-VN');
-    const deposits = await getDepositHistory(chatId);
-    const payments = await getPaymentHistory(chatId);
+    const depositsData = await getDepositHistory(chatId);
+    const paymentsData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
+      chatId: chatId.replace('-100', ''), // Chuyển đổi định dạng chatId cho Telegram link
       date: todayStr,
-      deposits,
-      payments,
+      deposits: depositsData.text,
+      depositsList: depositsData.list,
+      payments: paymentsData.text,
+      paymentsList: paymentsData.list,
       rate: formatRateValue(xValue) + "%",
       exchangeRate: formatRateValue(yValue),
       totalAmount: formatSmart(group.totalVND),
@@ -311,7 +319,7 @@ const handleMinusCommand = async (bot, msg) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+    bot.sendMessage(chatId, response, { parse_mode: 'HTML' });
     
   } catch (error) {
     console.error('Error in handleMinusCommand:', error);
@@ -392,13 +400,14 @@ const handlePercentCommand = async (bot, msg) => {
     const transaction = new Transaction({
       chatId: chatId.toString(),
       type: 'payment',
+      amount: 0,
       usdtAmount: payUSDT,
       message: messageText,
       details,
       senderName,
-      cardCode,
       rate: group.rate,
       exchangeRate: group.exchangeRate,
+      messageId: msg.message_id.toString(),
       timestamp: new Date()
     });
     
@@ -426,15 +435,18 @@ const handlePercentCommand = async (bot, msg) => {
     
     // Lấy thông tin giao dịch gần đây
     const todayStr = new Date().toLocaleDateString('vi-VN');
-    const deposits = await getDepositHistory(chatId);
-    const payments = await getPaymentHistory(chatId);
+    const depositsData = await getDepositHistory(chatId);
+    const paymentsData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
+      chatId: chatId.replace('-100', ''), // Chuyển đổi định dạng chatId cho Telegram link
       date: todayStr,
-      deposits,
-      payments,
+      deposits: depositsData.text,
+      depositsList: depositsData.list,
+      payments: paymentsData.text,
+      paymentsList: paymentsData.list,
       rate: formatRateValue(group.rate) + "%",
       exchangeRate: formatRateValue(group.exchangeRate),
       totalAmount: formatSmart(group.totalVND),
@@ -452,7 +464,7 @@ const handlePercentCommand = async (bot, msg) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+    bot.sendMessage(chatId, response, { parse_mode: 'HTML' });
     
   } catch (error) {
     console.error('Error in handlePercentCommand:', error);

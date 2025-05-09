@@ -63,29 +63,76 @@ const isTrc20Address = (str) => {
 };
 
 /**
- * Tạo tin nhắn telegram với định dạng markdown
+ * Tạo tin nhắn telegram không có markdown với các cải tiến mới
  * @param {Object} jsonData - Dữ liệu cần format
  * @returns {String} - Chuỗi đã định dạng
  */
 const formatTelegramMessage = (jsonData) => {
   let output = '';
   
-  // Date header (bold)
-  output += `*🧧今日是 ${jsonData.date} 🧧*\n`;
+  // Date header
+  output += `🧧今日是 ${jsonData.date} 🧧\n\n`;
   
-  if (jsonData.deposits && jsonData.deposits.trim() !== '') {
-    output += "今日入款:\n";
-    output += `\`\`\`\n${jsonData.deposits}\n\`\`\``;
-  } else {
-    output += "今日入款: 没有\n\n";
+  // Xử lý phần deposits (入款)
+  let depositCount = 0;
+  let depositLines = [];
+  
+  if (jsonData.depositsList && jsonData.depositsList.length > 0) {
+    depositCount = jsonData.depositsList.length;
+    
+    // Format với ID thứ tự và embedded links
+    jsonData.depositsList.forEach((deposit, index) => {
+      const idNumber = index + 1;
+      const idLink = deposit.messageId ? 
+        `<a href="https://t.me/c/${jsonData.chatId}/${deposit.messageId}">${idNumber}</a>` : 
+        idNumber;
+      depositLines.push(`[${idLink}] ${deposit.details}`);
+    });
+  } else if (jsonData.deposits && jsonData.deposits.trim() !== '') {
+    // Nếu dùng cách cũ (chuỗi chứ không phải danh sách)
+    // Đếm số dòng để tính số lượng giao dịch
+    const lines = jsonData.deposits.trim().split('\n');
+    depositCount = lines.length;
+    depositLines = lines;
   }
   
-  // Payments section
-  if (jsonData.payments && jsonData.payments.trim() !== '') {
-    output += "今日下发:\n";
-    output += `\`\`\`\n${jsonData.payments}\n\`\`\``;
+  // Hiển thị danh sách deposits
+  if (depositLines.length > 0) {
+    output += `今日入款 (${depositCount}笔):\n`;
+    output += `${depositLines.join('\n')}\n\n`;
   } else {
-    output += "今日下发: 没有\n\n";
+    output += `今日入款 (0笔): 没有\n\n`;
+  }
+  
+  // Xử lý phần payments (下发)
+  let paymentCount = 0;
+  let paymentLines = [];
+  
+  if (jsonData.paymentsList && jsonData.paymentsList.length > 0) {
+    paymentCount = jsonData.paymentsList.length;
+    
+    // Format với ID thứ tự và embedded links
+    jsonData.paymentsList.forEach((payment, index) => {
+      const idNumber = index + 1;
+      const idLink = payment.messageId ? 
+        `<a href="https://t.me/c/${jsonData.chatId}/${payment.messageId}">${idNumber}</a>` : 
+        idNumber;
+      paymentLines.push(`[${idLink}] ${payment.details}`);
+    });
+  } else if (jsonData.payments && jsonData.payments.trim() !== '') {
+    // Nếu dùng cách cũ (chuỗi chứ không phải danh sách)
+    // Đếm số dòng để tính số lượng giao dịch
+    const lines = jsonData.payments.trim().split('\n');
+    paymentCount = lines.length;
+    paymentLines = lines;
+  }
+  
+  // Hiển thị danh sách payments
+  if (paymentLines.length > 0) {
+    output += `今日下发 (${paymentCount}笔):\n`;
+    output += `${paymentLines.join('\n')}\n\n`;
+  } else {
+    output += `今日下发 (0笔): 没有\n\n`;
   }
   
   // Rate information
@@ -97,17 +144,17 @@ const formatTelegramMessage = (jsonData) => {
     rateInfoWithExample += `\n例子: 100.000=${jsonData.example} ${jsonData.currencyUnit || 'USDT'}`;
   }
   
-  output += `\`\`\`\n${rateInfoWithExample}\n\`\`\``;
+  output += `${rateInfoWithExample}\n\n`;
   
-  // Summary section (bold)
-  output += `*今日入款合计 💰: ${jsonData.totalAmount}*\n`;
-  output += `*入款 ${jsonData.currencyUnit || 'USDT'} 合计: ${jsonData.totalUSDT}*\n`;
-  output += `*出款 ${jsonData.currencyUnit || 'USDT'} 合计: ${jsonData.paidUSDT}*\n`;
-  output += `*当前${jsonData.currencyUnit || 'USDT'} 剩余合计: ${jsonData.remainingUSDT}*💎`;
+  // Summary section
+  output += `今日入款合计 💰: ${jsonData.totalAmount}\n`;
+  output += `入款 ${jsonData.currencyUnit || 'USDT'} 合计: ${jsonData.totalUSDT}\n`;
+  output += `出款 ${jsonData.currencyUnit || 'USDT'} 合计: ${jsonData.paidUSDT}\n`;
+  output += `当前${jsonData.currencyUnit || 'USDT'} 剩余合计: ${jsonData.remainingUSDT}💎`;
   
   // Cards section (if present)
   if (jsonData.cards && jsonData.cards.length > 0) {
-    output += `\n 卡额度 💳:\n\`\`\`\n${jsonData.cards.join("\n")}\`\`\``;
+    output += `\n\n卡额度 💳:\n${jsonData.cards.join("\n")}`;
   }
   
   return output;

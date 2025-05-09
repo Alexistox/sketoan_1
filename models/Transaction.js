@@ -39,6 +39,10 @@ const TransactionSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  messageId: {
+    type: String,
+    default: ''
+  },
   timestamp: {
     type: Date,
     default: Date.now

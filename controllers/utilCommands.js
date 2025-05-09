@@ -169,15 +169,18 @@ const handleReportCommand = async (bot, chatId, senderName) => {
     
     // Lấy thông tin giao dịch gần đây
     const todayStr = new Date().toLocaleDateString('vi-VN');
-    const deposits = await getDepositHistory(chatId);
-    const payments = await getPaymentHistory(chatId);
+    const depositsData = await getDepositHistory(chatId);
+    const paymentsData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
+      chatId: chatId.replace('-100', ''), // Chuyển đổi định dạng chatId cho Telegram link
       date: todayStr,
-      deposits,
-      payments,
+      deposits: depositsData.text,
+      depositsList: depositsData.list,
+      payments: paymentsData.text,
+      paymentsList: paymentsData.list,
       rate: formatRateValue(group.rate) + "%",
       exchangeRate: formatRateValue(group.exchangeRate),
       totalAmount: formatSmart(group.totalVND),
@@ -190,7 +193,7 @@ const handleReportCommand = async (bot, chatId, senderName) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+    bot.sendMessage(chatId, response, { parse_mode: 'HTML' });
   } catch (error) {
     console.error('Error in handleReportCommand:', error);
     bot.sendMessage(chatId, "处理报告命令时出错。请稍后再试。");
