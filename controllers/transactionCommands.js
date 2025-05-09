@@ -466,8 +466,178 @@ const handlePercentCommand = async (bot, msg) => {
   }
 };
 
+/**
+ * Xử lý lệnh skip (/skip) - Xóa một giao dịch theo ID
+ */
+const handleSkipCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const senderName = msg.from.first_name;
+    const messageText = msg.text;
+    
+    // Phân tích tin nhắn để lấy ID
+    const parts = messageText.split('/skip');
+    if (parts.length !== 2) {
+      bot.sendMessage(chatId, "指令无效。格式为：/skip [ID] 例如: /skip 3 或 /skip !2");
+      return;
+    }
+    
+    // Xử lý ID, loại bỏ khoảng trắng và ký tự !
+    let idStr = parts[1].trim();
+    let isPaymentId = false;
+    
+    if (idStr.startsWith('!')) {
+      isPaymentId = true;
+      idStr = idStr.substring(1);
+    }
+    
+    // Chuyển đổi ID thành số
+    const id = parseInt(idStr);
+    if (isNaN(id) || id <= 0) {
+      bot.sendMessage(chatId, "ID无效。应为正整数。");
+      return;
+    }
+    
+    // Tìm nhóm
+    const group = await Group.findOne({ chatId: chatId.toString() });
+    if (!group) {
+      bot.sendMessage(chatId, "没有找到群组信息。");
+      return;
+    }
+    
+    // Lấy tất cả giao dịch trong nhóm sau lần clear cuối
+    const lastClearDate = group.lastClearDate;
+    
+    let transactions;
+    if (isPaymentId) {
+      // Lấy các giao dịch payment
+      transactions = await Transaction.find({
+        chatId: chatId.toString(),
+        type: 'payment',
+        timestamp: { $gt: lastClearDate },
+        skipped: { $ne: true }
+      }).sort({ timestamp: 1 });
+    } else {
+      // Lấy các giao dịch deposit và withdraw
+      transactions = await Transaction.find({
+        chatId: chatId.toString(),
+        type: { $in: ['deposit', 'withdraw'] },
+        timestamp: { $gt: lastClearDate },
+        skipped: { $ne: true }
+      }).sort({ timestamp: 1 });
+    }
+    
+    // Kiểm tra xem ID có hợp lệ không
+    if (id > transactions.length) {
+      bot.sendMessage(chatId, `ID无效。${isPaymentId ? '下发' : '入款'}记录中只有 ${transactions.length} 个条目。`);
+      return;
+    }
+    
+    // Lấy giao dịch cần skip
+    const transaction = transactions[id - 1];
+    
+    // Bắt đầu xử lý skip dựa trên loại giao dịch
+    if (transaction.type === 'deposit') {
+      // Revert deposit: trừ VND và USDT
+      group.totalVND -= transaction.amount;
+      group.totalUSDT -= transaction.usdtAmount;
+      group.remainingUSDT = group.totalUSDT - group.usdtPaid;
+      
+      // Nếu có mã thẻ, cập nhật thẻ
+      if (transaction.cardCode) {
+        const card = await Card.findOne({ chatId: chatId.toString(), cardCode: transaction.cardCode });
+        if (card) {
+          card.total -= transaction.amount;
+          await card.save();
+        }
+      }
+    } else if (transaction.type === 'withdraw') {
+      // Revert withdraw: cộng VND và USDT
+      group.totalVND += Math.abs(transaction.amount);
+      group.totalUSDT += Math.abs(transaction.usdtAmount);
+      group.remainingUSDT = group.totalUSDT - group.usdtPaid;
+      
+      // Nếu có mã thẻ, cập nhật thẻ
+      if (transaction.cardCode) {
+        const card = await Card.findOne({ chatId: chatId.toString(), cardCode: transaction.cardCode });
+        if (card) {
+          card.total += Math.abs(transaction.amount);
+          await card.save();
+        }
+      }
+    } else if (transaction.type === 'payment') {
+      // Revert payment: trừ USDT đã thanh toán
+      group.usdtPaid -= transaction.usdtAmount;
+      group.remainingUSDT = group.totalUSDT - group.usdtPaid;
+      
+      // Nếu có mã thẻ, cập nhật thẻ
+      if (transaction.cardCode) {
+        const card = await Card.findOne({ chatId: chatId.toString(), cardCode: transaction.cardCode });
+        if (card) {
+          card.paid -= transaction.usdtAmount;
+          await card.save();
+        }
+      }
+    }
+    
+    // Lưu thay đổi vào group
+    await group.save();
+    
+    // Đánh dấu giao dịch là đã skip
+    transaction.skipped = true;
+    transaction.skipReason = `Skipped by ${senderName} at ${new Date().toLocaleString()}`;
+    await transaction.save();
+    
+    // Lưu transaction mới về lệnh skip
+    const skipTransaction = new Transaction({
+      chatId: chatId.toString(),
+      type: 'skip',
+      message: messageText,
+      details: `Skip transaction ID: ${id}${isPaymentId ? '!' : ''} - ${transaction.details}`,
+      senderName,
+      timestamp: new Date()
+    });
+    
+    await skipTransaction.save();
+    
+    // Lấy thông tin giao dịch gần đây sau khi skip
+    const todayStr = new Date().toLocaleDateString('vi-VN');
+    const depositData = await getDepositHistory(chatId);
+    const paymentData = await getPaymentHistory(chatId);
+    const cardSummary = await getCardSummary(chatId);
+    
+    // Tạo response JSON
+    const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
+    const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
+    
+    const responseData = {
+      date: todayStr,
+      depositData,
+      paymentData,
+      rate: formatRateValue(group.rate) + "%",
+      exchangeRate: formatRateValue(group.exchangeRate),
+      totalAmount: formatSmart(group.totalVND),
+      totalUSDT: formatSmart(group.totalUSDT),
+      paidUSDT: formatSmart(group.usdtPaid),
+      remainingUSDT: formatSmart(group.remainingUSDT),
+      currencyUnit,
+      cards: cardSummary
+    };
+    
+    // Format và gửi tin nhắn
+    const response = formatTelegramMessage(responseData);
+    bot.sendMessage(chatId, `✅ 成功删除ID为 ${id}${isPaymentId ? '!' : ''} 的交易记录。`, { parse_mode: 'Markdown' });
+    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+    
+  } catch (error) {
+    console.error('Error in handleSkipCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理删除命令时出错。请稍后再试。");
+  }
+};
+
 module.exports = {
   handlePlusCommand,
   handleMinusCommand,
-  handlePercentCommand
+  handlePercentCommand,
+  handleSkipCommand
 }; 

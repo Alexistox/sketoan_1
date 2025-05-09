@@ -204,6 +204,16 @@ const handleMessage = async (bot, msg, cache) => {
         return;
       }
       
+      if (messageText.startsWith('/skip ')) {
+        // Kiểm tra quyền Operator
+        if (await isUserOperator(userId, chatId)) {
+          await handleSkipCommand(bot, msg);
+        } else {
+          bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
+        }
+        return;
+      }
+      
       if (messageText.startsWith('/d ')) {
         // Kiểm tra quyền Operator
         if (await isUserOperator(userId, chatId)) {
@@ -388,33 +398,9 @@ const checkAndRegisterUser = async (userId, username, firstName, lastName) => {
 
 // Hàm gửi tin nhắn chào mừng
 const sendWelcomeMessage = async (bot, chatId, member) => {
-  try {
-    // Kiểm tra xem đây có phải là bot của chúng ta đang tham gia không
-    if (member.is_bot && member.username === bot.options.username) {
-      // Bot chúng ta vừa được thêm vào nhóm, gửi thông báo xin quyền admin
-      const welcomeMessage = `感谢将我添加到群组中！🎉\n\n为了使我能够正常工作，请授予我管理员权限。这将使我能够：\n• 管理入群申请\n• 发送群链接\n• 查看消息统计\n\n请群主或管理员点击下方按钮授予权限。`;
-      
-      const keyboard = {
-        inline_keyboard: [
-          [
-            { text: '授予管理员权限', callback_data: 'grant_admin_permission' },
-            { text: '查看使用说明', callback_data: 'show_instructions' }
-          ]
-        ]
-      };
-      
-      bot.sendMessage(chatId, welcomeMessage, {
-        reply_markup: JSON.stringify(keyboard)
-      });
-    } else {
-      // Người dùng thông thường tham gia nhóm
-      const welcomeName = member.first_name;
-      const welcomeMessage = `欢迎 ${welcomeName} 加入群组！! 🎉`;
-      bot.sendMessage(chatId, welcomeMessage);
-    }
-  } catch (error) {
-    console.error('Error in sendWelcomeMessage:', error);
-  }
+  const welcomeName = member.first_name;
+  const welcomeMessage = `欢迎 ${welcomeName} 加入群组！! 🎉`;
+  bot.sendMessage(chatId, welcomeMessage);
 };
 
 // Phần còn lại của file sẽ import các controller khác
@@ -429,7 +415,8 @@ const {
 const {
   handlePlusCommand,
   handleMinusCommand,
-  handlePercentCommand
+  handlePercentCommand,
+  handleSkipCommand
 } = require('./transactionCommands');
 
 const {

@@ -8,7 +8,7 @@ const TransactionSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['deposit', 'withdraw', 'payment', 'setRate', 'setExchangeRate', 'clear', 'delete'],
+    enum: ['deposit', 'withdraw', 'payment', 'setRate', 'setExchangeRate', 'clear', 'delete', 'skip'],
     required: true
   },
   amount: {
@@ -54,6 +54,14 @@ const TransactionSchema = new mongoose.Schema({
   messageId: {
     type: String,
     default: null
+  },
+  skipped: {
+    type: Boolean,
+    default: false
+  },
+  skipReason: {
+    type: String,
+    default: ''
   }
 }, { timestamps: true });
 

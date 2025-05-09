@@ -83,9 +83,19 @@ const formatTelegramMessage = (jsonData) => {
       const id = index + 1;
       if (entry.messageId && entry.chatLink) {
         // Tạo link đến tin nhắn gốc với ID là phần clickable
-        output += `[${id}](${entry.chatLink}). ${entry.details}\n`;
+        output += `[${id}](${entry.chatLink}). ${entry.details}`;
+        // Thêm tên người gửi ở cuối dòng
+        if (entry.senderName) {
+          output += ` - ${entry.senderName}`;
+        }
+        output += '\n';
       } else {
-        output += `${id}. ${entry.details}\n`;
+        output += `${id}. ${entry.details}`;
+        // Thêm tên người gửi ở cuối dòng
+        if (entry.senderName) {
+          output += ` - ${entry.senderName}`;
+        }
+        output += '\n';
       }
     });
     output += '\n';
@@ -100,12 +110,23 @@ const formatTelegramMessage = (jsonData) => {
     
     // Format giao dịch với ID và link
     jsonData.paymentData.entries.forEach((entry, index) => {
-      const id = index + 1;
+      // Dùng ký hiệu ! trước ID của payment
+      const id = `!${index + 1}`;
       if (entry.messageId && entry.chatLink) {
         // Tạo link đến tin nhắn gốc với ID là phần clickable
-        output += `[${id}](${entry.chatLink}). ${entry.details}\n`;
+        output += `[${id}](${entry.chatLink}). ${entry.details}`;
+        // Thêm tên người gửi ở cuối dòng
+        if (entry.senderName) {
+          output += ` - ${entry.senderName}`;
+        }
+        output += '\n';
       } else {
-        output += `${id}. ${entry.details}\n`;
+        output += `${id}. ${entry.details}`;
+        // Thêm tên người gửi ở cuối dòng
+        if (entry.senderName) {
+          output += ` - ${entry.senderName}`;
+        }
+        output += '\n';
       }
     });
     output += '\n';

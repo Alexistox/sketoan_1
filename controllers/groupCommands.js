@@ -430,22 +430,25 @@ const getDepositHistory = async (chatId) => {
     const transactions = await Transaction.find({
       chatId: chatId.toString(),
       type: { $in: ['deposit', 'withdraw'] },
-      timestamp: { $gt: lastClearDate }
-    }).sort({ timestamp: -1 });
+      timestamp: { $gt: lastClearDate },
+      skipped: { $ne: true } // Không lấy các giao dịch đã bị skip
+    }).sort({ timestamp: 1 }); // Sắp xếp theo thời gian tăng dần (ID sẽ tăng dần, cũ đến mới)
     
     if (transactions.length === 0) return { entries: [] };
     
-    // Format lại các chi tiết với messageId
+    // Format lại các chi tiết với messageId và senderName
     const entries = transactions.map(t => {
       return {
         details: t.details,
         messageId: t.messageId || null,
         chatLink: t.messageId ? `https://t.me/c/${chatId.toString().replace('-100', '')}/${t.messageId}` : null,
-        timestamp: t.timestamp
+        timestamp: t.timestamp,
+        senderName: t.senderName || ''
       };
     });
     
-    return { entries };
+    // Lấy 6 giao dịch gần đây nhất
+    return { entries: entries.slice(-6) };
   } catch (error) {
     console.error('Error in getDepositHistory:', error);
     return { entries: [] };
@@ -467,22 +470,25 @@ const getPaymentHistory = async (chatId) => {
     const transactions = await Transaction.find({
       chatId: chatId.toString(),
       type: 'payment',
-      timestamp: { $gt: lastClearDate }
-    }).sort({ timestamp: -1 });
+      timestamp: { $gt: lastClearDate },
+      skipped: { $ne: true } // Không lấy các giao dịch đã bị skip
+    }).sort({ timestamp: 1 }); // Sắp xếp theo thời gian tăng dần (ID sẽ tăng dần, cũ đến mới)
     
     if (transactions.length === 0) return { entries: [] };
     
-    // Format lại các chi tiết với messageId
+    // Format lại các chi tiết với messageId và senderName
     const entries = transactions.map(t => {
       return {
         details: t.details,
         messageId: t.messageId || null,
         chatLink: t.messageId ? `https://t.me/c/${chatId.toString().replace('-100', '')}/${t.messageId}` : null,
-        timestamp: t.timestamp
+        timestamp: t.timestamp,
+        senderName: t.senderName || ''
       };
     });
     
-    return { entries };
+    // Lấy 3 giao dịch gần đây nhất
+    return { entries: entries.slice(-3) };
   } catch (error) {
     console.error('Error in getPaymentHistory:', error);
     return { entries: [] };
