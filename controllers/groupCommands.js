@@ -3,14 +3,15 @@ const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const Config = require('../models/Config');
 const { formatSmart, formatRateValue, formatTelegramMessage, formatDateUS } = require('../utils/formatter');
+const { getButtonsStatus, getInlineKeyboard } = require('./userCommands');
 
 /**
  * Xử lý lệnh clear (上课) - Reset các giá trị về 0
  */
-const handleClearCommand = async (bot, chatId, userId, senderName) => {
+const handleClearCommand = async (bot, msg) => {
   try {
     // Tìm hoặc tạo group
-    let group = await Group.findOne({ chatId: chatId.toString() });
+    let group = await Group.findOne({ chatId: msg.chat.id.toString() });
     
     // Lấy rate và exchangeRate hiện tại
     const currentRate = group ? group.rate : 0;
@@ -18,7 +19,7 @@ const handleClearCommand = async (bot, chatId, userId, senderName) => {
     
     if (!group) {
       group = new Group({
-        chatId: chatId.toString(),
+        chatId: msg.chat.id.toString(),
         totalVND: 0,
         totalUSDT: 0,
         usdtPaid: 0,
@@ -39,10 +40,10 @@ const handleClearCommand = async (bot, chatId, userId, senderName) => {
     
     // Lưu transaction mới
     const transaction = new Transaction({
-      chatId: chatId.toString(),
+      chatId: msg.chat.id.toString(),
       type: 'clear',
       message: '/clear',
-      senderName,
+      senderName: msg.from.first_name,
       rate: currentRate,
       exchangeRate: currentExRate,
       timestamp: new Date()
@@ -60,12 +61,17 @@ const handleClearCommand = async (bot, chatId, userId, senderName) => {
     const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
-    // Tạo response JSON
+    // Lấy thông tin giao dịch gần đây
     const todayDate = new Date();
+    const depositData = await getDepositHistory(msg.chat.id);
+    const paymentData = await getPaymentHistory(msg.chat.id);
+    const cardSummary = await getCardSummary(msg.chat.id);
+    
+    // Tạo response JSON
     const responseData = {
       date: formatDateUS(todayDate),
-      depositData: { entries: [] },
-      paymentData: { entries: [] },
+      depositData,
+      paymentData,
       rate: formatRateValue(currentRate) + "%",
       exchangeRate: formatRateValue(currentExRate),
       example: formatSmart(exampleValue),
@@ -79,11 +85,19 @@ const handleClearCommand = async (bot, chatId, userId, senderName) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+    
+    // Kiểm tra trạng thái hiển thị buttons
+    const showButtons = await getButtonsStatus(msg.chat.id);
+    const keyboard = showButtons ? await getInlineKeyboard(msg.chat.id) : null;
+    
+    bot.sendMessage(msg.chat.id, response, { 
+      parse_mode: 'Markdown',
+      reply_markup: keyboard
+    });
     
   } catch (error) {
     console.error('Error in handleClearCommand:', error);
-    bot.sendMessage(chatId, "处理清除命令时出错。请稍后再试。");
+    bot.sendMessage(msg.chat.id, "处理清除命令时出错。请稍后再试。");
   }
 };
 

@@ -4,6 +4,7 @@ const Card = require('../models/Card');
 const Config = require('../models/Config');
 const { formatSmart, formatRateValue, formatTelegramMessage, isSingleNumber, formatDateUS, formatTimeString } = require('../utils/formatter');
 const { getDepositHistory, getPaymentHistory, getCardSummary } = require('./groupCommands');
+const { getButtonsStatus, getInlineKeyboard } = require('./userCommands');
 
 /**
  * Xử lý lệnh thêm tiền (+)
@@ -159,7 +160,15 @@ const handlePlusCommand = async (bot, msg) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+    
+    // Kiểm tra trạng thái hiển thị buttons
+    const showButtons = await getButtonsStatus(chatId);
+    const keyboard = showButtons ? await getInlineKeyboard(chatId) : null;
+    
+    bot.sendMessage(chatId, response, { 
+      parse_mode: 'Markdown',
+      reply_markup: keyboard
+    });
     
   } catch (error) {
     console.error('Error in handlePlusCommand:', error);
@@ -317,7 +326,15 @@ const handleMinusCommand = async (bot, msg) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+    
+    // Kiểm tra trạng thái hiển thị buttons
+    const showButtons = await getButtonsStatus(chatId);
+    const keyboard = showButtons ? await getInlineKeyboard(chatId) : null;
+    
+    bot.sendMessage(chatId, response, { 
+      parse_mode: 'Markdown',
+      reply_markup: keyboard
+    });
     
   } catch (error) {
     console.error('Error in handleMinusCommand:', error);
@@ -475,7 +492,15 @@ const handlePercentCommand = async (bot, msg) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+    
+    // Kiểm tra trạng thái hiển thị buttons
+    const showButtons = await getButtonsStatus(chatId);
+    const keyboard = showButtons ? await getInlineKeyboard(chatId) : null;
+    
+    bot.sendMessage(chatId, response, { 
+      parse_mode: 'Markdown',
+      reply_markup: keyboard
+    });
     
   } catch (error) {
     console.error('Error in handlePercentCommand:', error);
@@ -643,8 +668,20 @@ const handleSkipCommand = async (bot, msg) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, `✅ 成功删除ID为 ${id}${isPaymentId ? '!' : ''} 的交易记录。`, { parse_mode: 'Markdown' });
-    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+    
+    // Kiểm tra trạng thái hiển thị buttons
+    const showButtons = await getButtonsStatus(chatId);
+    const keyboard = showButtons ? await getInlineKeyboard(chatId) : null;
+    
+    bot.sendMessage(chatId, `✅ 成功删除ID为 ${id}${isPaymentId ? '!' : ''} 的交易记录。`, { 
+      parse_mode: 'Markdown',
+      reply_markup: keyboard
+    });
+    
+    bot.sendMessage(chatId, response, { 
+      parse_mode: 'Markdown',
+      reply_markup: keyboard
+    });
     
   } catch (error) {
     console.error('Error in handleSkipCommand:', error);

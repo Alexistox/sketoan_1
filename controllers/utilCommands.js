@@ -4,6 +4,7 @@ const Card = require('../models/Card');
 const Config = require('../models/Config');
 const { formatSmart, formatRateValue, formatTelegramMessage, isTrc20Address, formatDateUS } = require('../utils/formatter');
 const { getDepositHistory, getPaymentHistory, getCardSummary } = require('./groupCommands');
+const { getButtonsStatus, getInlineKeyboard } = require('./userCommands');
 
 /**
  * Xử lý lệnh tính toán USDT (/t)
@@ -237,7 +238,16 @@ const handleReportCommand = async (bot, chatId, senderName) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+    
+    // Kiểm tra trạng thái hiển thị buttons
+    const showButtons = await getButtonsStatus(chatId);
+    const keyboard = showButtons ? await getInlineKeyboard(chatId) : null;
+    
+    bot.sendMessage(chatId, response, { 
+      parse_mode: 'Markdown',
+      reply_markup: keyboard
+    });
+    
   } catch (error) {
     console.error('Error in handleReportCommand:', error);
     bot.sendMessage(chatId, "处理报告命令时出错。请稍后再试。");

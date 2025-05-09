@@ -86,51 +86,22 @@ const formatTimeString = (date) => {
 };
 
 /**
- * Tạo markdown link với text và URL
- * @param {String} text - Text hiển thị
- * @param {String} url - URL khi click vào text
- * @returns {String} - Markdown link string
- */
-const createMarkdownLink = (text, url) => {
-  return `[${text}](${url})`;
-};
-
-/**
- * Tạo inline keyboard button
- * @param {String} text - Text hiển thị trên button
- * @param {String} callbackData - Data khi click vào button
- * @returns {Object} - Inline keyboard button object
- */
-const createInlineButton = (text, callbackData) => {
-  return {
-    text: text,
-    callback_data: callbackData
-  };
-};
-
-/**
- * Tạo tin nhắn telegram với markdown và inline buttons
+ * Tạo tin nhắn telegram không sử dụng markdown
  * @param {Object} jsonData - Dữ liệu cần format
- * @param {Object} options - Các tùy chọn bổ sung
- * @returns {Object} - Object chứa text và keyboard
+ * @returns {String} - Chuỗi đã định dạng
  */
-const formatTelegramMessage = (jsonData, options = {}) => {
+const formatTelegramMessage = (jsonData) => {
   let output = '';
   
   // Date header - using US format (MM/DD/YYYY)
   const currentDate = new Date();
   const formattedDate = formatDateUS(currentDate);
-  output += `今日是 ${formattedDate} | `;
-  
-  // Add markdown link if provided
-  if (options.markdownLink) {
-    output += createMarkdownLink(options.markdownLink.text, options.markdownLink.url) + '\n';
-  }
+  output += `🧧今日是 ${formattedDate} 🧧\n`;
   
   // Deposits section
   if (jsonData.depositData && jsonData.depositData.entries && jsonData.depositData.entries.length > 0) {
     const depositCount = jsonData.depositData.totalCount || jsonData.depositData.entries.length;
-    output += `⤵️已入账 (${depositCount}笔):\n`;
+    output += `📥已入账 (${depositCount}笔):\n`;
     
     // Format giao dịch với ID và link
     jsonData.depositData.entries.forEach((entry) => {
@@ -155,13 +126,13 @@ const formatTelegramMessage = (jsonData, options = {}) => {
     });
     output += '\n';
   } else {
-    output += "⤵️已入账: 没有\n\n";
+    output += "📥已入账: 没有\n\n";
   }
   
   // Payments section
   if (jsonData.paymentData && jsonData.paymentData.entries && jsonData.paymentData.entries.length > 0) {
     const paymentCount = jsonData.paymentData.totalCount || jsonData.paymentData.entries.length;
-    output += `⤴️已下发 (${paymentCount}笔):\n`;
+    output += `📤已下发 (${paymentCount}笔):\n`;
     
     // Format giao dịch với ID và link
     jsonData.paymentData.entries.forEach((entry) => {
@@ -187,7 +158,7 @@ const formatTelegramMessage = (jsonData, options = {}) => {
     });
     output += '\n';
   } else {
-    output += "⤴️已下发: 没有\n\n";
+    output += "📤已下发: 没有\n\n";
   }
   output += `总入款💰: ${jsonData.totalAmount}\n`;
   // Rate information
@@ -210,23 +181,8 @@ const formatTelegramMessage = (jsonData, options = {}) => {
   if (jsonData.cards && jsonData.cards.length > 0) {
     output += `\n卡额度 💳:\n${jsonData.cards.join("\n")}`;
   }
-
-  // Create response object with text and keyboard
-  const response = {
-    text: output,
-    parse_mode: 'Markdown'
-  };
-
-  // Add inline keyboard if provided
-  if (options.inlineButtons) {
-    response.reply_markup = {
-      inline_keyboard: options.inlineButtons.map(row => 
-        row.map(button => createInlineButton(button.text, button.callback_data))
-      )
-    };
-  }
   
-  return response;
+  return output;
 };
 
 module.exports = {
@@ -237,7 +193,5 @@ module.exports = {
   isTrc20Address,
   formatTelegramMessage,
   formatDateUS,
-  formatTimeString,
-  createMarkdownLink,
-  createInlineButton
+  formatTimeString
 }; 

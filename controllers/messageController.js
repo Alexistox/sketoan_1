@@ -407,14 +407,25 @@ const handleMessage = async (bot, msg, cache) => {
         }
         return;
       }
-      
-      if (messageText.startsWith('/markdown ')) {
-        await handleMarkdownCommand(bot, msg);
+
+      // Thêm xử lý cho lệnh /onbut và /offbut
+      if (messageText === '/onbut') {
+        // Kiểm tra quyền Operator
+        if (await isUserOperator(userId, chatId)) {
+          await handleEnableButtonsCommand(bot, msg);
+        } else {
+          bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
+        }
         return;
       }
-      
-      if (messageText === '/rmarkdown') {
-        await handleRemoveMarkdownCommand(bot, msg);
+
+      if (messageText === '/offbut') {
+        // Kiểm tra quyền Operator
+        if (await isUserOperator(userId, chatId)) {
+          await handleDisableButtonsCommand(bot, msg);
+        } else {
+          bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
+        }
         return;
       }
     }
@@ -568,9 +579,7 @@ const {
   handleAddInlineCommand,
   handleRemoveInlineCommand,
   displayInlineButtons,
-  handleGetUsdtAddressCommand,
-  handleMarkdownCommand,
-  handleRemoveMarkdownCommand
+  handleGetUsdtAddressCommand
 } = require('./userCommands');
 
 const {

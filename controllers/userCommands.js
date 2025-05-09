@@ -954,89 +954,121 @@ const handleInlineButtonCallback = async (bot, callbackQuery) => {
 };
 
 /**
- * Xử lý lệnh thêm markdown link (/markdown)
+ * Xử lý lệnh bật hiển thị buttons (/onbut)
  */
-const handleMarkdownCommand = async (bot, msg) => {
+const handleEnableButtonsCommand = async (bot, msg) => {
   try {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
-    const messageText = msg.text;
     
-    // Chỉ Admin và Owner có quyền thêm markdown
-    if (!await isUserAdmin(userId)) {
-      bot.sendMessage(chatId, "⛔ 只有机器人所有者和管理员才能添加markdown链接！");
+    // Kiểm tra quyền Operator
+    if (!(await isUserOperator(userId, chatId))) {
+      bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
       return;
     }
     
-    // Phân tích tin nhắn
-    const parts = messageText.split('/markdown ');
-    if (parts.length !== 2) {
-      bot.sendMessage(chatId, "语法无效。例如: /markdown 点击这里 https://example.com");
-      return;
+    // Tìm hoặc tạo Config cho trạng thái buttons
+    let buttonsConfig = await Config.findOne({ key: `SHOW_BUTTONS_${chatId}` });
+    
+    if (!buttonsConfig) {
+      buttonsConfig = new Config({
+        key: `SHOW_BUTTONS_${chatId}`,
+        value: 'true'
+      });
+    } else {
+      buttonsConfig.value = 'true';
     }
     
-    // Tách text và URL
-    const content = parts[1].trim();
-    const lastSpaceIndex = content.lastIndexOf(' ');
-    if (lastSpaceIndex === -1) {
-      bot.sendMessage(chatId, "请提供文本和URL。例如: /markdown 点击这里 https://example.com");
-      return;
-    }
+    await buttonsConfig.save();
+    bot.sendMessage(chatId, "✅ 已启用所有消息的按钮显示");
     
-    const text = content.substring(0, lastSpaceIndex);
-    const url = content.substring(lastSpaceIndex + 1);
-    
-    // Kiểm tra URL hợp lệ
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      bot.sendMessage(chatId, "URL必须以http://或https://开头");
-      return;
-    }
-    
-    // Lưu markdown vào Config
-    let config = await Config.findOne({ key: 'markdown' });
-    if (!config) {
-      config = new Config({ key: 'markdown' });
-    }
-    
-    config.value = {
-      text: text,
-      url: url
-    };
-    await config.save();
-    
-    bot.sendMessage(chatId, `✅ Markdown链接已添加:\n[${text}](${url})`, { parse_mode: 'Markdown' });
   } catch (error) {
-    console.error('Error in handleMarkdownCommand:', error);
-    bot.sendMessage(msg.chat.id, "处理添加markdown链接命令时出错。请稍后再试。");
+    console.error('Error in handleEnableButtonsCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理命令时出错。请稍后再试。");
   }
 };
 
 /**
- * Xử lý lệnh xóa markdown link (/rmarkdown)
+ * Xử lý lệnh tắt hiển thị buttons (/offbut)
  */
-const handleRemoveMarkdownCommand = async (bot, msg) => {
+const handleDisableButtonsCommand = async (bot, msg) => {
   try {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     
-    // Chỉ Admin và Owner có quyền xóa markdown
-    if (!await isUserAdmin(userId)) {
-      bot.sendMessage(chatId, "⛔ 只有机器人所有者和管理员才能删除markdown链接！");
+    // Kiểm tra quyền Operator
+    if (!(await isUserOperator(userId, chatId))) {
+      bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
       return;
     }
     
-    // Xóa markdown từ Config
-    const config = await Config.findOne({ key: 'markdown' });
-    if (!config) {
-      bot.sendMessage(chatId, "⚠️ 没有设置markdown链接");
-      return;
+    // Tìm hoặc tạo Config cho trạng thái buttons
+    let buttonsConfig = await Config.findOne({ key: `SHOW_BUTTONS_${chatId}` });
+    
+    if (!buttonsConfig) {
+      buttonsConfig = new Config({
+        key: `SHOW_BUTTONS_${chatId}`,
+        value: 'false'
+      });
+    } else {
+      buttonsConfig.value = 'false';
     }
     
-    await config.deleteOne();
-    bot.sendMessage(chatId, "✅ Markdown链接已删除");
+    await buttonsConfig.save();
+    bot.sendMessage(chatId, "✅ 已禁用所有消息的按钮显示");
+    
   } catch (error) {
-    console.error('Error in handleRemoveMarkdownCommand:', error);
-    bot.sendMessage(msg.chat.id, "处理删除markdown链接命令时出错。请稍后再试。");
+    console.error('Error in handleDisableButtonsCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理命令时出错。请稍后再试。");
+  }
+};
+
+/**
+ * Lấy trạng thái hiển thị buttons
+ */
+const getButtonsStatus = async (chatId) => {
+  try {
+    const buttonsConfig = await Config.findOne({ key: `SHOW_BUTTONS_${chatId}` });
+    return buttonsConfig ? buttonsConfig.value === 'true' : true; // Mặc định là true
+  } catch (error) {
+    console.error('Error in getButtonsStatus:', error);
+    return true;
+  }
+};
+
+/**
+ * Lấy inline keyboard từ cấu hình
+ */
+const getInlineKeyboard = async (chatId) => {
+  try {
+    const inlineConfig = await Config.findOne({ key: `INLINE_BUTTONS_${chatId}` });
+    if (!inlineConfig) return null;
+    
+    let buttons = [];
+    try {
+      buttons = JSON.parse(inlineConfig.value);
+    } catch (error) {
+      return null;
+    }
+    
+    if (buttons.length === 0) return null;
+    
+    // Sắp xếp các buttons theo hàng ngang, mỗi hàng tối đa 3 buttons
+    const keyboard = [];
+    for (let i = 0; i < buttons.length; i += 3) {
+      const row = buttons.slice(i, i + 3).map(button => ({
+        text: button.text,
+        callback_data: button.command
+      }));
+      keyboard.push(row);
+    }
+    
+    return {
+      inline_keyboard: keyboard
+    };
+  } catch (error) {
+    console.error('Error in getInlineKeyboard:', error);
+    return null;
   }
 };
 
@@ -1057,5 +1089,9 @@ module.exports = {
   handleAddInlineCommand,
   handleRemoveInlineCommand,
   handleInlineButtonCallback,
-  displayInlineButtons
+  displayInlineButtons,
+  handleEnableButtonsCommand,
+  handleDisableButtonsCommand,
+  getButtonsStatus,
+  getInlineKeyboard
 }; 
