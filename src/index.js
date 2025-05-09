@@ -26,7 +26,8 @@ const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
 // Handle /start command
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
-  await bot.sendMessage(chatId, "欢迎使用交易机器人！");
+  const startMessage = `欢迎使用记账机器人！\n\n开始新账单/ 上课\n记账入账▫️+10000 或者 +数字 [卡号] [额度]\n代付减账▫️-10000\n撤销账单▫️撤销账单id\n下发▫️下发 100  或者 %数字 [卡号] [额度]\n设置费率▫️设置汇率1600  或者 | 价格 费率/汇率\n设置操作▫️@群成员  （群成员 必须在设置之前发送消息）\n删除操作▫️@群成员  （群成员 必须在设置之前发送消息）\n操作人 ▫️ 查看被授权人员名单\n+0▫️\n结束| /report`;
+  await bot.sendMessage(chatId, startMessage);
 });
 
 // Handle addition command
