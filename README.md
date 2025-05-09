@@ -13,11 +13,14 @@ A Telegram bot for transaction management, built with Node.js and MongoDB.
 - Currency conversion utilities
 - Mathematical expressions evaluation
 - TRC20 address formatting
+- Automatic user registration and group member tracking
 
 ## Recent Updates
 
-- Removed permission restrictions - all users can now use bot commands
-- Maintained owner privileges for system maintenance commands
+- Added automatic user registration when bot joins a group or users interact with bot
+- Implemented new member tracking when users join groups
+- Automatically registers group admins when bot has admin permissions
+- Implemented tiered permission system (Owner, Admin, Operator)
 - Added `/help` command for user assistance
 - Improved formatting for user lists and transaction reports
 
