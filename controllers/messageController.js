@@ -9,7 +9,7 @@ const {
   isTrc20Address,
   formatTelegramMessage
 } = require('../utils/formatter');
-const { isUserOwner, isUserAdmin, isUserOperator } = require('../utils/permissions');
+const { isUserOwner, isUserAdmin, isUserOperator, createOrUpdateUser } = require('../utils/permissions');
 
 const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
@@ -36,32 +36,11 @@ const handleMessage = async (bot, msg, cache) => {
     const timestamp = new Date();
     const messageText = msg.text || '';
     
-    // Đảm bảo người dùng gửi tin nhắn được lưu vào database
-    if (msg.from && !msg.from.is_bot) {
-      await registerNewMember(msg.from, chatId);
-    }
-    
     // Xử lý thành viên mới tham gia nhóm
     if (msg.new_chat_members) {
       const newMembers = msg.new_chat_members;
-      
-      // Kiểm tra xem bot có trong danh sách thành viên mới không
-      const botInfo = await bot.getMe();
-      const botId = botInfo.id.toString();
-      const botJoined = newMembers.some(member => member.id.toString() === botId);
-      
-      if (botJoined) {
-        // Bot vừa được thêm vào nhóm
-        await handleBotAddedToGroup(bot, msg);
-      } else {
-        // Người dùng mới được thêm vào nhóm
-        for (const member of newMembers) {
-          // Gửi tin nhắn chào mừng
-          await sendWelcomeMessage(bot, chatId, member);
-          
-          // Lưu thông tin người dùng mới vào database
-          await registerNewMember(member, chatId);
-        }
+      for (const member of newMembers) {
+        await sendWelcomeMessage(bot, chatId, member);
       }
       return;
     }
@@ -374,30 +353,24 @@ const handleMessage = async (bot, msg, cache) => {
 // Hàm kiểm tra và đăng ký người dùng mới
 const checkAndRegisterUser = async (userId, username, firstName, lastName) => {
   try {
-    let user = await User.findOne({ userId: userId.toString() });
+    // Kiểm tra xem đã có owner chưa
+    const ownerExists = await User.findOne({ isOwner: true });
     
-    if (!user) {
-      // Kiểm tra xem đã có owner chưa
-      const ownerExists = await User.findOne({ isOwner: true });
-      
-      // Nếu chưa có owner, user đầu tiên sẽ là owner và admin
-      const isFirstUser = !ownerExists;
-      
-      user = new User({
-        userId: userId.toString(),
-        username,
-        firstName,
-        lastName,
-        isOwner: isFirstUser,
-        isAdmin: isFirstUser,
-        groupPermissions: []
-      });
-      
-      await user.save();
-      
-      if (isFirstUser) {
-        console.log(`User ${username} (ID: ${userId}) is now the bot owner and admin`);
-      }
+    // Nếu chưa có owner, user đầu tiên sẽ là owner và admin
+    const isFirstUser = !ownerExists;
+    
+    // Tạo hoặc cập nhật người dùng
+    const user = await createOrUpdateUser({
+      userId: userId.toString(),
+      username,
+      firstName,
+      lastName,
+      isOwner: isFirstUser,
+      isAdmin: isFirstUser
+    });
+    
+    if (isFirstUser && user) {
+      console.log(`User ${username} (ID: ${userId}) is now the bot owner and admin`);
     }
     
     return user;
@@ -467,154 +440,6 @@ const {
   handleReplyImageBankInfo
 } = require('./imageCommands');
 
-// Hàm đăng ký thành viên mới được thêm vào nhóm
-const registerNewMember = async (member, chatId) => {
-  try {
-    const userId = member.id.toString();
-    const username = member.username || member.first_name || 'unknown';
-    const firstName = member.first_name || '';
-    const lastName = member.last_name || '';
-    
-    // Kiểm tra xem người dùng đã tồn tại trong database chưa
-    let user = await User.findOne({ userId: userId });
-    
-    if (!user) {
-      // Tạo người dùng mới
-      user = new User({
-        userId: userId,
-        username: username,
-        firstName: firstName,
-        lastName: lastName,
-        isOwner: false,
-        isAdmin: false,
-        groupPermissions: [{ chatId: chatId.toString(), isOperator: false }]
-      });
-      
-      await user.save();
-      console.log(`New user registered: ${username} (ID: ${userId}) in group ${chatId}`);
-    } else {
-      // Cập nhật thông tin người dùng
-      if (user.firstName !== firstName || user.lastName !== lastName || user.username !== username) {
-        user.firstName = firstName;
-        user.lastName = lastName;
-        user.username = username;
-        await user.save();
-      }
-      
-      // Kiểm tra xem người dùng đã có trong nhóm chưa
-      const existingGroupPerm = user.groupPermissions.find(perm => perm.chatId === chatId.toString());
-      if (!existingGroupPerm) {
-        user.groupPermissions.push({ chatId: chatId.toString(), isOperator: false });
-        await user.save();
-      }
-    }
-    
-    return user;
-  } catch (error) {
-    console.error('Error in registerNewMember:', error);
-    return null;
-  }
-};
-
-// Hàm xử lý khi bot được thêm vào nhóm mới
-const handleBotAddedToGroup = async (bot, msg) => {
-  try {
-    const chatId = msg.chat.id;
-    const chatTitle = msg.chat.title || 'Nhóm';
-    
-    console.log(`Bot được thêm vào nhóm: ${chatTitle} (ID: ${chatId})`);
-    
-    // Thêm người đã mời bot vào nhóm như một người dùng
-    const inviter = msg.from;
-    if (inviter) {
-      await registerNewMember(inviter, chatId);
-    }
-    
-    // Gửi tin nhắn chào mừng và hướng dẫn
-    const welcomeMessage = `👋 感谢您邀请我加入 "${chatTitle}" 群组！
-
-🔹 我将帮助您管理交易记录和操作人员。
-🔹 您可以使用 /help 命令查看所有可用功能。
-🔹 建议将我设置为群组管理员，以便我能够记录所有群组成员的信息。
-
-👤 您已被注册在我的数据库中。如果您是第一个邀请我的用户，您将成为机器人的所有者。`;
-    
-    bot.sendMessage(chatId, welcomeMessage);
-    
-    // Tạo cấu trúc nhóm mới trong database
-    let group = await Group.findOne({ chatId: chatId.toString() });
-    if (!group) {
-      group = new Group({
-        chatId: chatId.toString(),
-        operators: []
-      });
-      await group.save();
-    }
-    
-    // Kiểm tra xem đã có owner chưa
-    const ownerExists = await User.findOne({ isOwner: true });
-    
-    // Nếu chưa có owner và người thêm bot không phải là bot
-    if (!ownerExists && inviter && inviter.id !== bot.id) {
-      const user = await User.findOne({ userId: inviter.id.toString() });
-      if (user) {
-        user.isOwner = true;
-        user.isAdmin = true;
-        await user.save();
-        
-        // Thêm người thêm bot vào danh sách operator của nhóm
-        if (!group.operators.some(op => op.userId === user.userId)) {
-          group.operators.push({
-            userId: user.userId,
-            username: user.username,
-            dateAdded: new Date()
-          });
-          await group.save();
-        }
-        
-        // Thông báo cho người dùng
-        bot.sendMessage(chatId, `✅ 用户 @${user.username} 已被设置为机器人所有者和管理员`);
-      }
-    }
-    
-    // Lấy thông tin về bot
-    const botInfo = await bot.getMe();
-    console.log(`Bot Info: ${JSON.stringify(botInfo)}`);
-    
-    // Kiểm tra nếu bot có quyền admin để lấy danh sách thành viên
-    try {
-      const chatAdmins = await bot.getChatAdministrators(chatId);
-      const isBotAdmin = chatAdmins.some(admin => admin.user.id === botInfo.id);
-      
-      if (isBotAdmin) {
-        // Nếu bot là admin, thử lấy danh sách thành viên
-        // Lưu ý: Telegram Bot API không cung cấp phương thức trực tiếp để lấy tất cả thành viên
-        // Đây chỉ là giải pháp dự phòng, nhưng có thể không hoạt động với nhóm lớn
-        bot.sendMessage(chatId, "🔍 正在检索群组成员...");
-        
-        // Vì giới hạn API, chúng ta chỉ có thể lấy các admin
-        for (const admin of chatAdmins) {
-          await registerNewMember(admin.user, chatId);
-        }
-        
-        bot.sendMessage(chatId, "✅ 已注册群组管理员信息");
-      } else {
-        // Nếu bot không phải admin, gợi ý người dùng cấp quyền admin
-        bot.sendMessage(chatId, "ℹ️ 建议将我设置为群组管理员，以便我能够更好地为您服务。");
-      }
-    } catch (error) {
-      console.error(`Error checking admin status: ${error.message}`);
-    }
-    
-  } catch (error) {
-    console.error('Error in handleBotAddedToGroup:', error);
-    bot.sendMessage(msg.chat.id, "处理加入群组时出错。请稍后再试。");
-  }
-};
-
 module.exports = {
-  handleMessage,
-  checkAndRegisterUser,
-  registerNewMember,
-  handleBotAddedToGroup
+  handleMessage
 }; 
