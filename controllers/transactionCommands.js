@@ -13,6 +13,7 @@ const handlePlusCommand = async (bot, msg) => {
     const chatId = msg.chat.id;
     const senderName = msg.from.first_name;
     const messageText = msg.text;
+    const messageId = msg.message_id.toString();
     
     // Phân tích tin nhắn
     const parts = messageText.split('+');
@@ -94,8 +95,8 @@ const handlePlusCommand = async (bot, msg) => {
       limit: cardLimit,
       rate: xValue,
       exchangeRate: yValue,
-      messageId: msg.message_id.toString(),
-      timestamp: new Date()
+      timestamp: new Date(),
+      messageId
     });
     
     await transaction.save();
@@ -131,18 +132,15 @@ const handlePlusCommand = async (bot, msg) => {
     
     // Lấy thông tin giao dịch gần đây
     const todayStr = new Date().toLocaleDateString('vi-VN');
-    const depositsData = await getDepositHistory(chatId);
-    const paymentsData = await getPaymentHistory(chatId);
+    const depositData = await getDepositHistory(chatId);
+    const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
-      chatId: chatId.replace('-100', ''), // Chuyển đổi định dạng chatId cho Telegram link
       date: todayStr,
-      deposits: depositsData.text,
-      depositsList: depositsData.list,
-      payments: paymentsData.text,
-      paymentsList: paymentsData.list,
+      depositData,
+      paymentData,
       rate: formatRateValue(xValue) + "%",
       exchangeRate: formatRateValue(yValue),
       totalAmount: formatSmart(group.totalVND),
@@ -160,7 +158,7 @@ const handlePlusCommand = async (bot, msg) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'HTML' });
+    bot.sendMessage(chatId, response);
     
   } catch (error) {
     console.error('Error in handlePlusCommand:', error);
@@ -176,6 +174,7 @@ const handleMinusCommand = async (bot, msg) => {
     const chatId = msg.chat.id;
     const senderName = msg.from.first_name;
     const messageText = msg.text;
+    const messageId = msg.message_id.toString();
     
     // Phân tích tin nhắn
     const parts = messageText.split('-');
@@ -255,8 +254,8 @@ const handleMinusCommand = async (bot, msg) => {
       cardCode,
       rate: xValue,
       exchangeRate: yValue,
-      messageId: msg.message_id.toString(),
-      timestamp: new Date()
+      timestamp: new Date(),
+      messageId
     });
     
     await transaction.save();
@@ -290,18 +289,15 @@ const handleMinusCommand = async (bot, msg) => {
     
     // Lấy thông tin giao dịch gần đây
     const todayStr = new Date().toLocaleDateString('vi-VN');
-    const depositsData = await getDepositHistory(chatId);
-    const paymentsData = await getPaymentHistory(chatId);
+    const depositData = await getDepositHistory(chatId);
+    const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
-      chatId: chatId.replace('-100', ''), // Chuyển đổi định dạng chatId cho Telegram link
       date: todayStr,
-      deposits: depositsData.text,
-      depositsList: depositsData.list,
-      payments: paymentsData.text,
-      paymentsList: paymentsData.list,
+      depositData,
+      paymentData,
       rate: formatRateValue(xValue) + "%",
       exchangeRate: formatRateValue(yValue),
       totalAmount: formatSmart(group.totalVND),
@@ -319,11 +315,11 @@ const handleMinusCommand = async (bot, msg) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'HTML' });
+    bot.sendMessage(chatId, response);
     
   } catch (error) {
     console.error('Error in handleMinusCommand:', error);
-    bot.sendMessage(msg.chat.id, "处理取款命令时出错。请稍后再试。");
+    bot.sendMessage(msg.chat.id, "处理出款命令时出错。请稍后再试。");
   }
 };
 
@@ -335,6 +331,7 @@ const handlePercentCommand = async (bot, msg) => {
     const chatId = msg.chat.id;
     const senderName = msg.from.first_name;
     const messageText = msg.text;
+    const messageId = msg.message_id.toString();
     
     // Phân tích tin nhắn
     const parts = messageText.split('下发');
@@ -400,15 +397,15 @@ const handlePercentCommand = async (bot, msg) => {
     const transaction = new Transaction({
       chatId: chatId.toString(),
       type: 'payment',
-      amount: 0,
       usdtAmount: payUSDT,
       message: messageText,
       details,
       senderName,
+      cardCode,
       rate: group.rate,
       exchangeRate: group.exchangeRate,
-      messageId: msg.message_id.toString(),
-      timestamp: new Date()
+      timestamp: new Date(),
+      messageId
     });
     
     await transaction.save();
@@ -435,18 +432,15 @@ const handlePercentCommand = async (bot, msg) => {
     
     // Lấy thông tin giao dịch gần đây
     const todayStr = new Date().toLocaleDateString('vi-VN');
-    const depositsData = await getDepositHistory(chatId);
-    const paymentsData = await getPaymentHistory(chatId);
+    const depositData = await getDepositHistory(chatId);
+    const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
-      chatId: chatId.replace('-100', ''), // Chuyển đổi định dạng chatId cho Telegram link
       date: todayStr,
-      deposits: depositsData.text,
-      depositsList: depositsData.list,
-      payments: paymentsData.text,
-      paymentsList: paymentsData.list,
+      depositData,
+      paymentData,
       rate: formatRateValue(group.rate) + "%",
       exchangeRate: formatRateValue(group.exchangeRate),
       totalAmount: formatSmart(group.totalVND),
@@ -464,7 +458,7 @@ const handlePercentCommand = async (bot, msg) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'HTML' });
+    bot.sendMessage(chatId, response);
     
   } catch (error) {
     console.error('Error in handlePercentCommand:', error);

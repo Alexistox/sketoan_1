@@ -5,19 +5,29 @@ const Config = require('../models/Config');
 const { formatSmart, formatRateValue, formatTelegramMessage } = require('../utils/formatter');
 
 /**
- * Xử lý lệnh xóa dữ liệu giao dịch (上课)
+ * Xử lý lệnh clear (上课) - Reset các giá trị về 0
  */
 const handleClearCommand = async (bot, chatId, userId, senderName) => {
   try {
-    // Xóa tất cả giao dịch cũ
+    // Tìm hoặc tạo group
     let group = await Group.findOne({ chatId: chatId.toString() });
+    
+    // Lấy rate và exchangeRate hiện tại
+    const currentRate = group ? group.rate : 0;
+    const currentExRate = group ? group.exchangeRate : 0;
+    
     if (!group) {
       group = new Group({
         chatId: chatId.toString(),
+        totalVND: 0,
+        totalUSDT: 0,
+        usdtPaid: 0,
+        remainingUSDT: 0,
+        rate: currentRate,
+        exchangeRate: currentExRate,
         lastClearDate: new Date()
       });
     } else {
-      // Chỉ reset totalVND và totalUSDT nếu có dữ liệu
       group.totalVND = 0;
       group.totalUSDT = 0;
       group.usdtPaid = 0;
@@ -31,49 +41,54 @@ const handleClearCommand = async (bot, chatId, userId, senderName) => {
     const transaction = new Transaction({
       chatId: chatId.toString(),
       type: 'clear',
-      amount: 0,
-      message: '上课',
+      message: '/clear',
       senderName,
-      rate: group.rate,
-      exchangeRate: group.exchangeRate,
+      rate: currentRate,
+      exchangeRate: currentExRate,
       timestamp: new Date()
     });
     
     await transaction.save();
+    
+    // Tính toán giá trị ví dụ
+    let exampleValue = 0;
+    if (currentExRate > 0) {
+      exampleValue = (100000 / currentExRate) * (1 - currentRate / 100);
+    }
     
     // Lấy đơn vị tiền tệ
     const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Tạo response JSON
+    const todayStr = new Date().toLocaleDateString('vi-VN');
     const responseData = {
-      chatId: chatId.replace('-100', ''), // Chuyển đổi định dạng chatId cho Telegram link
-      date: new Date().toLocaleDateString('vi-VN'),
-      deposits: '',
-      depositsList: [],
-      payments: '',
-      paymentsList: [],
-      rate: formatRateValue(group.rate) + "%",
-      exchangeRate: formatRateValue(group.exchangeRate),
+      date: todayStr,
+      depositData: { entries: [] },
+      paymentData: { entries: [] },
+      rate: formatRateValue(currentRate) + "%",
+      exchangeRate: formatRateValue(currentExRate),
+      example: formatSmart(exampleValue),
       totalAmount: "0",
       totalUSDT: "0",
       paidUSDT: "0",
       remainingUSDT: "0",
       currencyUnit,
-      cards: []
+      cards: [] // Empty after clear
     };
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'HTML' });
+    bot.sendMessage(chatId, response);
+    
   } catch (error) {
     console.error('Error in handleClearCommand:', error);
-    bot.sendMessage(chatId, "处理清除数据命令时出错。请稍后再试。");
+    bot.sendMessage(chatId, "处理清除命令时出错。请稍后再试。");
   }
 };
 
 /**
- * Xử lý lệnh thiết lập tỷ lệ phí (设置费率)
+ * Xử lý lệnh đặt rate (设置费率)
  */
 const handleRateCommand = async (bot, msg) => {
   try {
@@ -81,17 +96,18 @@ const handleRateCommand = async (bot, msg) => {
     const senderName = msg.from.first_name;
     const messageText = msg.text;
     
-    // Phân tích tin nhắn
-    const parts = messageText.split('设置费率');
-    if (parts.length !== 2) {
-      bot.sendMessage(chatId, "设置费率后跟要设置的费率值。例如：设置费率 3.5");
+    // Trích xuất giá trị rate từ tin nhắn
+    const inputText = messageText.substring(4).trim();
+    
+    if (!inputText) {
+      bot.sendMessage(chatId, "语法无效。例如: 设置费率2 (对应2%)");
       return;
     }
     
-    // Lấy tỷ lệ mới
-    const rateValue = parseFloat(parts[1].trim());
-    if (isNaN(rateValue)) {
-      bot.sendMessage(chatId, "无效的费率值。请提供有效数字。");
+    // Chuyển đổi sang số
+    const xValue = parseFloat(inputText);
+    if (isNaN(xValue)) {
+      bot.sendMessage(chatId, "输入值无效。");
       return;
     }
     
@@ -100,10 +116,10 @@ const handleRateCommand = async (bot, msg) => {
     if (!group) {
       group = new Group({
         chatId: chatId.toString(),
-        rate: rateValue
+        rate: xValue
       });
     } else {
-      group.rate = rateValue;
+      group.rate = xValue;
     }
     
     await group.save();
@@ -115,18 +131,17 @@ const handleRateCommand = async (bot, msg) => {
       amount: 0,
       message: messageText,
       senderName,
-      rate: rateValue,
+      rate: xValue,
       exchangeRate: group.exchangeRate,
-      messageId: msg.message_id.toString(),
       timestamp: new Date()
     });
     
     await transaction.save();
     
     // Tính toán giá trị ví dụ
-    let exampleValue = null;
+    let exampleValue = 0;
     if (group.exchangeRate > 0) {
-      exampleValue = (100000 / group.exchangeRate) * (1 - rateValue / 100);
+      exampleValue = (100000 / group.exchangeRate) * (1 - xValue / 100);
     }
     
     // Lấy đơn vị tiền tệ
@@ -135,20 +150,18 @@ const handleRateCommand = async (bot, msg) => {
     
     // Lấy thông tin giao dịch gần đây
     const todayStr = new Date().toLocaleDateString('vi-VN');
-    const depositsData = await getDepositHistory(chatId);
-    const paymentsData = await getPaymentHistory(chatId);
+    const depositData = await getDepositHistory(chatId);
+    const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
-      chatId: chatId.replace('-100', ''), // Chuyển đổi định dạng chatId cho Telegram link
       date: todayStr,
-      deposits: depositsData.text,
-      depositsList: depositsData.list,
-      payments: paymentsData.text,
-      paymentsList: paymentsData.list,
-      rate: formatRateValue(rateValue) + "%",
+      depositData,
+      paymentData,
+      rate: formatRateValue(xValue) + "%",
       exchangeRate: formatRateValue(group.exchangeRate),
+      example: formatSmart(exampleValue),
       totalAmount: formatSmart(group.totalVND),
       totalUSDT: formatSmart(group.totalUSDT),
       paidUSDT: formatSmart(group.usdtPaid),
@@ -157,23 +170,18 @@ const handleRateCommand = async (bot, msg) => {
       cards: cardSummary
     };
     
-    // Thêm ví dụ nếu có
-    if (exampleValue !== null) {
-      responseData.example = formatSmart(exampleValue);
-    }
-    
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'HTML' });
+    bot.sendMessage(chatId, response);
     
   } catch (error) {
     console.error('Error in handleRateCommand:', error);
-    bot.sendMessage(msg.chat.id, "处理设置费率命令时出错。请稍后再试。");
+    bot.sendMessage(msg.chat.id, "处理费率命令时出错。请稍后再试。");
   }
 };
 
 /**
- * Xử lý lệnh thiết lập tỷ giá (设置汇率)
+ * Xử lý lệnh đặt tỷ giá (设置汇率)
  */
 const handleExchangeRateCommand = async (bot, msg) => {
   try {
@@ -181,17 +189,18 @@ const handleExchangeRateCommand = async (bot, msg) => {
     const senderName = msg.from.first_name;
     const messageText = msg.text;
     
-    // Phân tích tin nhắn
-    const parts = messageText.split('设置汇率');
-    if (parts.length !== 2) {
-      bot.sendMessage(chatId, "设置汇率后跟要设置的汇率值。例如：设置汇率 23700");
+    // Trích xuất giá trị tỷ giá từ tin nhắn
+    const inputText = messageText.substring(4).trim();
+    
+    if (!inputText) {
+      bot.sendMessage(chatId, "语法无效。例如: 设置汇率23000");
       return;
     }
     
-    // Lấy tỷ giá mới
-    const rateValue = parseFloat(parts[1].trim());
-    if (isNaN(rateValue)) {
-      bot.sendMessage(chatId, "无效的汇率值。请提供有效数字。");
+    // Chuyển đổi sang số
+    const yValue = parseFloat(inputText);
+    if (isNaN(yValue)) {
+      bot.sendMessage(chatId, "输入值无效。");
       return;
     }
     
@@ -200,10 +209,10 @@ const handleExchangeRateCommand = async (bot, msg) => {
     if (!group) {
       group = new Group({
         chatId: chatId.toString(),
-        exchangeRate: rateValue
+        exchangeRate: yValue
       });
     } else {
-      group.exchangeRate = rateValue;
+      group.exchangeRate = yValue;
     }
     
     await group.save();
@@ -216,17 +225,16 @@ const handleExchangeRateCommand = async (bot, msg) => {
       message: messageText,
       senderName,
       rate: group.rate,
-      exchangeRate: rateValue,
-      messageId: msg.message_id.toString(),
+      exchangeRate: yValue,
       timestamp: new Date()
     });
     
     await transaction.save();
     
     // Tính toán giá trị ví dụ
-    let exampleValue = null;
-    if (group.rate >= 0) {
-      exampleValue = (100000 / rateValue) * (1 - group.rate / 100);
+    let exampleValue = 0;
+    if (yValue > 0) {
+      exampleValue = (100000 / yValue) * (1 - group.rate / 100);
     }
     
     // Lấy đơn vị tiền tệ
@@ -235,20 +243,18 @@ const handleExchangeRateCommand = async (bot, msg) => {
     
     // Lấy thông tin giao dịch gần đây
     const todayStr = new Date().toLocaleDateString('vi-VN');
-    const depositsData = await getDepositHistory(chatId);
-    const paymentsData = await getPaymentHistory(chatId);
+    const depositData = await getDepositHistory(chatId);
+    const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
-      chatId: chatId.replace('-100', ''), // Chuyển đổi định dạng chatId cho Telegram link
       date: todayStr,
-      deposits: depositsData.text,
-      depositsList: depositsData.list,
-      payments: paymentsData.text,
-      paymentsList: paymentsData.list,
+      depositData,
+      paymentData,
       rate: formatRateValue(group.rate) + "%",
-      exchangeRate: formatRateValue(rateValue),
+      exchangeRate: formatRateValue(yValue),
+      example: formatSmart(exampleValue),
       totalAmount: formatSmart(group.totalVND),
       totalUSDT: formatSmart(group.totalUSDT),
       paidUSDT: formatSmart(group.usdtPaid),
@@ -257,23 +263,18 @@ const handleExchangeRateCommand = async (bot, msg) => {
       cards: cardSummary
     };
     
-    // Thêm ví dụ nếu có
-    if (exampleValue !== null) {
-      responseData.example = formatSmart(exampleValue);
-    }
-    
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'HTML' });
+    bot.sendMessage(chatId, response);
     
   } catch (error) {
     console.error('Error in handleExchangeRateCommand:', error);
-    bot.sendMessage(msg.chat.id, "处理设置汇率命令时出错。请稍后再试。");
+    bot.sendMessage(msg.chat.id, "处理汇率命令时出错。请稍后再试。");
   }
 };
 
 /**
- * Xử lý lệnh thiết lập tỷ lệ phí và tỷ giá đồng thời (/d)
+ * Xử lý lệnh đặt cả 2 giá trị rate và exchangeRate (/d)
  */
 const handleDualRateCommand = async (bot, msg) => {
   try {
@@ -281,25 +282,20 @@ const handleDualRateCommand = async (bot, msg) => {
     const senderName = msg.from.first_name;
     const messageText = msg.text;
     
-    // Phân tích tin nhắn
-    const parts = messageText.split('/d ');
+    // Trích xuất tham số từ tin nhắn
+    const param = messageText.substring(3).trim();
+    const parts = param.split('/');
+    
     if (parts.length !== 2) {
-      bot.sendMessage(chatId, "指令无效。格式为：/d [费率] [汇率]");
+      bot.sendMessage(chatId, "语法无效。例如: /d 2/14600");
       return;
     }
     
-    // Lấy tỷ lệ mới
-    const values = parts[1].trim().split(' ');
-    if (values.length < 2) {
-      bot.sendMessage(chatId, "请同时提供费率和汇率。例如：/d 3.5 23700");
-      return;
-    }
-    
-    const newRate = parseFloat(values[0]);
-    const newExRate = parseFloat(values[1]);
+    const newRate = parseFloat(parts[0]);
+    const newExRate = parseFloat(parts[1]);
     
     if (isNaN(newRate) || isNaN(newExRate)) {
-      bot.sendMessage(chatId, "无效的费率或汇率值。请提供有效数字。");
+      bot.sendMessage(chatId, "输入的数值无效，请检查后重试。");
       return;
     }
     
@@ -327,7 +323,6 @@ const handleDualRateCommand = async (bot, msg) => {
       senderName,
       rate: newRate,
       exchangeRate: newExRate,
-      messageId: msg.message_id.toString(),
       timestamp: new Date()
     });
     
@@ -342,18 +337,15 @@ const handleDualRateCommand = async (bot, msg) => {
     
     // Lấy thông tin giao dịch gần đây
     const todayStr = new Date().toLocaleDateString('vi-VN');
-    const depositsData = await getDepositHistory(chatId);
-    const paymentsData = await getPaymentHistory(chatId);
+    const depositData = await getDepositHistory(chatId);
+    const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
-      chatId: chatId.replace('-100', ''), // Chuyển đổi định dạng chatId cho Telegram link
       date: todayStr,
-      deposits: depositsData.text,
-      depositsList: depositsData.list,
-      payments: paymentsData.text,
-      paymentsList: paymentsData.list,
+      depositData,
+      paymentData,
       rate: formatRateValue(newRate) + "%",
       exchangeRate: formatRateValue(newExRate),
       example: formatSmart(exampleValue),
@@ -367,7 +359,7 @@ const handleDualRateCommand = async (bot, msg) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response, { parse_mode: 'HTML' });
+    bot.sendMessage(chatId, response);
     
   } catch (error) {
     console.error('Error in handleDualRateCommand:', error);
@@ -424,13 +416,13 @@ const handleDeleteCommand = async (bot, msg) => {
 };
 
 /**
- * Hàm lấy lịch sử giao dịch gửi tiền
+ * Hàm lấy lịch sử giao dịch deposit
  */
 const getDepositHistory = async (chatId) => {
   try {
     // Tìm nhóm và lấy ngày clear cuối cùng
     const group = await Group.findOne({ chatId: chatId.toString() });
-    if (!group) return "";
+    if (!group) return { entries: [] };
     
     const lastClearDate = group.lastClearDate;
     
@@ -439,33 +431,24 @@ const getDepositHistory = async (chatId) => {
       chatId: chatId.toString(),
       type: { $in: ['deposit', 'withdraw'] },
       timestamp: { $gt: lastClearDate }
-    }).sort({ timestamp: -1 }).limit(10);
+    }).sort({ timestamp: -1 });
     
-    if (transactions.length === 0) return "";
+    if (transactions.length === 0) return { entries: [] };
     
-    // Hỗ trợ cả hai chế độ: chuỗi (cũ) và danh sách (mới)
+    // Format lại các chi tiết với messageId
+    const entries = transactions.map(t => {
+      return {
+        details: t.details,
+        messageId: t.messageId || null,
+        chatLink: t.messageId ? `https://t.me/c/${chatId.toString().replace('-100', '')}/${t.messageId}` : null,
+        timestamp: t.timestamp
+      };
+    });
     
-    // Format giá trị trả về chuỗi (backwards compatibility)
-    const details = transactions.map(t => t.details).filter(d => d && d.trim() !== '');
-    
-    // Format giá trị trả về danh sách (mới)
-    const detailsList = transactions.map(t => ({
-      details: t.details,
-      messageId: t.messageId || '',
-      type: t.type,
-      amount: t.amount,
-      usdtAmount: t.usdtAmount,
-      timestamp: t.timestamp
-    }));
-    
-    // Trả về cả hai giá trị, formatter sẽ ưu tiên dùng danh sách nếu có
-    return {
-      text: details.join('\n'),
-      list: detailsList
-    };
+    return { entries };
   } catch (error) {
     console.error('Error in getDepositHistory:', error);
-    return "";
+    return { entries: [] };
   }
 };
 
@@ -476,7 +459,7 @@ const getPaymentHistory = async (chatId) => {
   try {
     // Tìm nhóm và lấy ngày clear cuối cùng
     const group = await Group.findOne({ chatId: chatId.toString() });
-    if (!group) return "";
+    if (!group) return { entries: [] };
     
     const lastClearDate = group.lastClearDate;
     
@@ -485,32 +468,24 @@ const getPaymentHistory = async (chatId) => {
       chatId: chatId.toString(),
       type: 'payment',
       timestamp: { $gt: lastClearDate }
-    }).sort({ timestamp: -1 }).limit(5);
+    }).sort({ timestamp: -1 });
     
-    if (transactions.length === 0) return "";
+    if (transactions.length === 0) return { entries: [] };
     
-    // Hỗ trợ cả hai chế độ: chuỗi (cũ) và danh sách (mới)
+    // Format lại các chi tiết với messageId
+    const entries = transactions.map(t => {
+      return {
+        details: t.details,
+        messageId: t.messageId || null,
+        chatLink: t.messageId ? `https://t.me/c/${chatId.toString().replace('-100', '')}/${t.messageId}` : null,
+        timestamp: t.timestamp
+      };
+    });
     
-    // Format giá trị trả về chuỗi (backwards compatibility)
-    const details = transactions.map(t => t.details).filter(d => d && d.trim() !== '');
-    
-    // Format giá trị trả về danh sách (mới)
-    const detailsList = transactions.map(t => ({
-      details: t.details,
-      messageId: t.messageId || '',
-      amount: t.amount,
-      usdtAmount: t.usdtAmount,
-      timestamp: t.timestamp
-    }));
-    
-    // Trả về cả hai giá trị, formatter sẽ ưu tiên dùng danh sách nếu có
-    return {
-      text: details.join('\n'),
-      list: detailsList
-    };
+    return { entries };
   } catch (error) {
     console.error('Error in getPaymentHistory:', error);
-    return "";
+    return { entries: [] };
   }
 };
 

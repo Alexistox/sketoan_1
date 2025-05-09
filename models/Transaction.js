@@ -39,10 +39,6 @@ const TransactionSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
-  messageId: {
-    type: String,
-    default: ''
-  },
   timestamp: {
     type: Date,
     default: Date.now
@@ -54,6 +50,10 @@ const TransactionSchema = new mongoose.Schema({
   exchangeRate: {
     type: Number,
     default: 0
+  },
+  messageId: {
+    type: String,
+    default: null
   }
 }, { timestamps: true });
 
