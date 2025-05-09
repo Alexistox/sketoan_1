@@ -2,7 +2,7 @@ const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const Config = require('../models/Config');
-const { formatSmart, formatRateValue, formatTelegramMessage, isSingleNumber, formatDateUS } = require('../utils/formatter');
+const { formatSmart, formatRateValue, formatTelegramMessage, isSingleNumber, formatDateUS, formatTimeString } = require('../utils/formatter');
 const { getDepositHistory, getPaymentHistory, getCardSummary } = require('./groupCommands');
 
 /**
@@ -78,9 +78,9 @@ const handlePlusCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} +${formatSmart(amountVND)} (${cardCode}) = ${formatSmart(newUSDT)} ${currencyUnit}`;
+      details = `${formatTimeString(new Date())} +${formatSmart(amountVND)} (${cardCode}) = ${formatSmart(newUSDT)} ${currencyUnit}`;
     } else {
-      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} +${formatSmart(amountVND)} = ${formatSmart(newUSDT)} ${currencyUnit}`;
+      details = `${formatTimeString(new Date())} +${formatSmart(amountVND)} = ${formatSmart(newUSDT)} ${currencyUnit}`;
     }
     
     // Lưu giao dịch mới
@@ -239,9 +239,9 @@ const handleMinusCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} -${formatSmart(amountVND)} (${cardCode}) = -${formatSmart(minusUSDT)} ${currencyUnit}`;
+      details = `${formatTimeString(new Date())} -${formatSmart(amountVND)} (${cardCode}) = -${formatSmart(minusUSDT)} ${currencyUnit}`;
     } else {
-      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} -${formatSmart(amountVND)} = -${formatSmart(minusUSDT)} ${currencyUnit}`;
+      details = `${formatTimeString(new Date())} -${formatSmart(amountVND)} = -${formatSmart(minusUSDT)} ${currencyUnit}`;
     }
     
     // Lưu giao dịch mới
@@ -405,9 +405,9 @@ const handlePercentCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} +${formatSmart(payUSDT)} ${currencyUnit} (${cardCode})`;
+      details = `${formatTimeString(new Date())} +${formatSmart(payUSDT)} ${currencyUnit} (${cardCode})`;
     } else {
-      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} +${formatSmart(payUSDT)} ${currencyUnit}`;
+      details = `${formatTimeString(new Date())} +${formatSmart(payUSDT)} ${currencyUnit}`;
     }
     
     // Lưu giao dịch mới

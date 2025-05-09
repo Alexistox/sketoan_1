@@ -75,6 +75,17 @@ const formatDateUS = (date) => {
 };
 
 /**
+ * Định dạng thời gian theo định dạng 24h (giờ:phút)
+ * @param {Date} date - Đối tượng ngày cần định dạng
+ * @returns {String} - Chuỗi thời gian đã định dạng (ví dụ: 14:05)
+ */
+const formatTimeString = (date) => {
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  return `${hours}:${minutes}`;
+};
+
+/**
  * Tạo tin nhắn telegram không sử dụng markdown
  * @param {Object} jsonData - Dữ liệu cần format
  * @returns {String} - Chuỗi đã định dạng
@@ -151,7 +162,7 @@ const formatTelegramMessage = (jsonData) => {
   }
   output += `总入款💰: ${jsonData.totalAmount}\n`;
   // Rate information
-  const rateInfo = `费率=${jsonData.rate}|🔃汇率=${jsonData.exchangeRate}\n`;
+  const rateInfo = `费率=${jsonData.rate}|🔃汇率=${jsonData.exchangeRate}`;
  
   // Thêm ví dụ nếu có
   let rateInfoWithExample = rateInfo;
@@ -159,7 +170,7 @@ const formatTelegramMessage = (jsonData) => {
     rateInfoWithExample += `\n例子: 100.000=${jsonData.example} ${jsonData.currencyUnit || 'USDT'}`;
   }
   
-  output += `${rateInfoWithExample}\n\n`;
+  output += `${rateInfoWithExample}\n`;
   
   // Summary section
   output += `应下发 ${jsonData.currencyUnit || 'USDT'}: ${jsonData.totalUSDT}\n`;
@@ -181,5 +192,6 @@ module.exports = {
   isSingleNumber,
   isTrc20Address,
   formatTelegramMessage,
-  formatDateUS
+  formatDateUS,
+  formatTimeString
 }; 
