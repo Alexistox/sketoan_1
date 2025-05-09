@@ -330,17 +330,17 @@ const handleListOperatorsCommand = async (bot, msg) => {
 };
 
 /**
- * Xử lý lệnh thêm người điều hành (加操作人)
+ * Xử lý lệnh thêm người điều hành (设置操作人)
  */
 const handleAddOperatorCommand = async (bot, msg) => {
   try {
     const chatId = msg.chat.id;
     const messageText = msg.text;
     
-    // Phân tích tin nhắn bằng cách tìm index của '加操作人' và lấy tất cả ký tự sau đó
-    const cmdIndex = messageText.indexOf('加操作人');
+    // Phân tích tin nhắn bằng cách tìm index của '设置操作人' và lấy tất cả ký tự sau đó
+    const cmdIndex = messageText.indexOf('设置操作人');
     if (cmdIndex === -1) {
-      bot.sendMessage(chatId, "指令无效。格式为：加操作人 @username");
+      bot.sendMessage(chatId, "指令无效。格式为：设置操作人 @username");
       return;
     }
     

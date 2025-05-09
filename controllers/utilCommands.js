@@ -167,17 +167,64 @@ const handleReportCommand = async (bot, chatId, senderName) => {
     const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
-    // Lấy thông tin giao dịch gần đây
+    // Lấy thông tin tất cả các giao dịch trong ngày
     const todayStr = new Date().toLocaleDateString('vi-VN');
-    const depositData = await getDepositHistory(chatId);
-    const paymentData = await getPaymentHistory(chatId);
+    const lastClearDate = group.lastClearDate;
+    
+    // Lấy tất cả các giao dịch deposit/withdraw
+    const depositTransactions = await Transaction.find({
+      chatId: chatId.toString(),
+      type: { $in: ['deposit', 'withdraw'] },
+      timestamp: { $gt: lastClearDate },
+      skipped: { $ne: true }
+    }).sort({ timestamp: 1 });
+    
+    // Lấy tất cả các giao dịch payment
+    const paymentTransactions = await Transaction.find({
+      chatId: chatId.toString(),
+      type: 'payment',
+      timestamp: { $gt: lastClearDate },
+      skipped: { $ne: true }
+    }).sort({ timestamp: 1 });
+    
+    // Format dữ liệu giao dịch deposit
+    const depositEntries = depositTransactions.map((t, index) => {
+      return {
+        id: index + 1,
+        details: t.details,
+        messageId: t.messageId || null,
+        chatLink: t.messageId ? `https://t.me/c/${chatId.toString().replace('-100', '')}/${t.messageId}` : null,
+        timestamp: t.timestamp,
+        senderName: t.senderName || ''
+      };
+    });
+    
+    // Format dữ liệu giao dịch payment
+    const paymentEntries = paymentTransactions.map((t, index) => {
+      return {
+        id: index + 1,
+        details: t.details,
+        messageId: t.messageId || null,
+        chatLink: t.messageId ? `https://t.me/c/${chatId.toString().replace('-100', '')}/${t.messageId}` : null,
+        timestamp: t.timestamp,
+        senderName: t.senderName || ''
+      };
+    });
+    
+    // Lấy thông tin thẻ
     const cardSummary = await getCardSummary(chatId);
     
-    // Tạo response JSON
+    // Tạo response JSON với tất cả giao dịch
     const responseData = {
       date: todayStr,
-      depositData,
-      paymentData,
+      depositData: { 
+        entries: depositEntries, 
+        totalCount: depositEntries.length 
+      },
+      paymentData: { 
+        entries: paymentEntries, 
+        totalCount: paymentEntries.length 
+      },
       rate: formatRateValue(group.rate) + "%",
       exchangeRate: formatRateValue(group.exchangeRate),
       totalAmount: formatSmart(group.totalVND),

@@ -437,8 +437,10 @@ const getDepositHistory = async (chatId) => {
     if (transactions.length === 0) return { entries: [] };
     
     // Format lại các chi tiết với messageId và senderName
-    const entries = transactions.map(t => {
+    // Gán ID theo thứ tự giao dịch
+    const entries = transactions.map((t, index) => {
       return {
+        id: index + 1, // ID theo thứ tự trong mảng
         details: t.details,
         messageId: t.messageId || null,
         chatLink: t.messageId ? `https://t.me/c/${chatId.toString().replace('-100', '')}/${t.messageId}` : null,
@@ -447,11 +449,11 @@ const getDepositHistory = async (chatId) => {
       };
     });
     
-    // Lấy 6 giao dịch gần đây nhất
-    return { entries: entries.slice(-6) };
+    // Chỉ lấy 6 giao dịch gần đây nhất nếu có quá nhiều giao dịch
+    return { entries: entries.slice(-6), totalCount: entries.length };
   } catch (error) {
     console.error('Error in getDepositHistory:', error);
-    return { entries: [] };
+    return { entries: [], totalCount: 0 };
   }
 };
 
@@ -477,8 +479,10 @@ const getPaymentHistory = async (chatId) => {
     if (transactions.length === 0) return { entries: [] };
     
     // Format lại các chi tiết với messageId và senderName
-    const entries = transactions.map(t => {
+    // Gán ID theo thứ tự giao dịch
+    const entries = transactions.map((t, index) => {
       return {
+        id: index + 1, // ID theo thứ tự trong mảng
         details: t.details,
         messageId: t.messageId || null,
         chatLink: t.messageId ? `https://t.me/c/${chatId.toString().replace('-100', '')}/${t.messageId}` : null,
@@ -487,11 +491,11 @@ const getPaymentHistory = async (chatId) => {
       };
     });
     
-    // Lấy 3 giao dịch gần đây nhất
-    return { entries: entries.slice(-3) };
+    // Chỉ lấy 3 giao dịch gần đây nhất nếu có quá nhiều giao dịch
+    return { entries: entries.slice(-3), totalCount: entries.length };
   } catch (error) {
     console.error('Error in getPaymentHistory:', error);
-    return { entries: [] };
+    return { entries: [], totalCount: 0 };
   }
 };
 

@@ -75,12 +75,13 @@ const formatTelegramMessage = (jsonData) => {
   
   // Deposits section
   if (jsonData.depositData && jsonData.depositData.entries && jsonData.depositData.entries.length > 0) {
-    const depositCount = jsonData.depositData.entries.length;
+    const depositCount = jsonData.depositData.totalCount || jsonData.depositData.entries.length;
     output += `今日入款 (${depositCount}笔):\n`;
     
     // Format giao dịch với ID và link
-    jsonData.depositData.entries.forEach((entry, index) => {
-      const id = index + 1;
+    jsonData.depositData.entries.forEach((entry) => {
+      // Sử dụng ID từ entry thay vì tạo ID mới
+      const id = entry.id || (entry.index + 1);
       if (entry.messageId && entry.chatLink) {
         // Tạo link đến tin nhắn gốc với ID là phần clickable
         output += `[${id}](${entry.chatLink}). ${entry.details}`;
@@ -105,13 +106,14 @@ const formatTelegramMessage = (jsonData) => {
   
   // Payments section
   if (jsonData.paymentData && jsonData.paymentData.entries && jsonData.paymentData.entries.length > 0) {
-    const paymentCount = jsonData.paymentData.entries.length;
+    const paymentCount = jsonData.paymentData.totalCount || jsonData.paymentData.entries.length;
     output += `今日下发 (${paymentCount}笔):\n`;
     
     // Format giao dịch với ID và link
-    jsonData.paymentData.entries.forEach((entry, index) => {
+    jsonData.paymentData.entries.forEach((entry) => {
       // Dùng ký hiệu ! trước ID của payment
-      const id = `!${index + 1}`;
+      // Sử dụng ID từ entry thay vì tạo ID mới
+      const id = `!${entry.id || (entry.index + 1)}`;
       if (entry.messageId && entry.chatLink) {
         // Tạo link đến tin nhắn gốc với ID là phần clickable
         output += `[${id}](${entry.chatLink}). ${entry.details}`;

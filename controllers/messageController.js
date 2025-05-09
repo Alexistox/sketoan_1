@@ -79,6 +79,7 @@ const handleMessage = async (bot, msg, cache) => {
     }
     
     if (messageText === '结束') {
+      // Xử lý "结束" giống như "/report"
       await handleReportCommand(bot, chatId, firstName);
       return;
     }
@@ -103,7 +104,7 @@ const handleMessage = async (bot, msg, cache) => {
       return;
     }
     
-    if (messageText.startsWith('下发')) {
+    if (messageText.startsWith('下发') || messageText.startsWith('%')) {
       // Kiểm tra quyền Operator
       if (await isUserOperator(userId, chatId)) {
         await handlePercentCommand(bot, msg);
@@ -114,7 +115,7 @@ const handleMessage = async (bot, msg, cache) => {
     }
     
     // Lệnh quản lý operators
-    if (messageText.startsWith('加操作人')) {
+    if (messageText.startsWith('设置操作人')) {
       // Kiểm tra quyền Admin
       if (await isUserAdmin(userId)) {
         await handleAddOperatorCommand(bot, msg);

@@ -324,7 +324,7 @@ const handleMinusCommand = async (bot, msg) => {
 };
 
 /**
- * Xử lý lệnh thanh toán (下发)
+ * Xử lý lệnh thanh toán (下发 hoặc %)
  */
 const handlePercentCommand = async (bot, msg) => {
   try {
@@ -333,10 +333,19 @@ const handlePercentCommand = async (bot, msg) => {
     const messageText = msg.text;
     const messageId = msg.message_id.toString();
     
-    // Phân tích tin nhắn
-    const parts = messageText.split('下发');
+    // Phân tích tin nhắn - hỗ trợ cả 下发 và % prefix
+    let parts;
+    if (messageText.startsWith('下发')) {
+      parts = messageText.split('下发');
+    } else if (messageText.startsWith('%')) {
+      parts = messageText.split('%');
+    } else {
+      bot.sendMessage(chatId, "指令无效。格式为：下发数字 (USDT) 或 %数字 (USDT) 或 下发数字 [卡号] 或 %数字 [卡号]");
+      return;
+    }
+    
     if (parts.length !== 2) {
-      bot.sendMessage(chatId, "指令无效。格式为：下发数字 (USDT) 或 下发数字 [卡号]");
+      bot.sendMessage(chatId, "指令无效。格式为：下发数字 (USDT) 或 %数字 (USDT) 或 下发数字 [卡号] 或 %数字 [卡号]");
       return;
     }
     
@@ -533,7 +542,7 @@ const handleSkipCommand = async (bot, msg) => {
       return;
     }
     
-    // Lấy giao dịch cần skip
+    // Lấy giao dịch cần skip - vì ID là số thứ tự trong mảng (bắt đầu từ 1), nên cần trừ 1
     const transaction = transactions[id - 1];
     
     // Bắt đầu xử lý skip dựa trên loại giao dịch
