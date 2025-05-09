@@ -83,28 +83,6 @@ bot.onText(/^下发/, async (msg) => {
   }
 });
 
-// Handle % as alternative for payment command (同样处理为下发命令)
-bot.onText(/^%/, async (msg) => {
-  try {
-    const chatId = msg.chat.id;
-    const username = msg.from.username;
-    
-    if (!await isUsernameAllowed(username)) {
-      await bot.sendMessage(chatId, "您没有权限使用此命令。");
-      return;
-    }
-    
-    // Convert % command to 下发 format
-    const messageText = msg.text.replace(/^%/, '下发');
-    const modifiedMsg = { ...msg, text: messageText };
-    
-    await handleTransaction(modifiedMsg, bot);
-  } catch (error) {
-    console.error('Error handling % payment command:', error);
-    await bot.sendMessage(msg.chat.id, "处理命令时出错，请重试。");
-  }
-});
-
 // Handle TRC20 address
 bot.onText(/^T[1-9A-Za-z]{33}$/, async (msg) => {
   try {
@@ -163,19 +141,18 @@ bot.on('photo', async (msg) => {
   }
 });
 
-// Handle report command (for both /report and 结束)
-bot.onText(/^(\/report|结束)$/, async (msg) => {
+// Handle report command
+bot.onText(/\/report/, async (msg) => {
   try {
     const chatId = msg.chat.id;
     const username = msg.from.username;
-    const senderName = msg.from.first_name;
     
     if (!await isUsernameAllowed(username)) {
       await bot.sendMessage(chatId, "您没有权限使用此命令。");
       return;
     }
 
-    await handleReportCommand(bot, chatId, senderName);
+    await handleReportCommand(chatId, bot);
   } catch (error) {
     console.error('Error handling report command:', error);
     await bot.sendMessage(msg.chat.id, "生成报告时出错，请重试。");
@@ -237,7 +214,7 @@ bot.onText(/^\/[tv]/, async (msg) => {
 });
 
 // Handle user management commands
-bot.onText(/^(设置操作人|移除操作人|\/users)$/, async (msg) => {
+bot.onText(/^(加操作人|移除操作人|\/users)$/, async (msg) => {
   try {
     const chatId = msg.chat.id;
     const username = msg.from.username;
@@ -247,23 +224,10 @@ bot.onText(/^(设置操作人|移除操作人|\/users)$/, async (msg) => {
       return;
     }
 
-    const command = msg.text;
-    let handleCommand;
-    
-    if (command === '设置操作人') {
-      // 设置操作人 is an alias for /op
-      handleCommand = '/op';
-    } else if (command === '移除操作人') {
-      // 移除操作人 is an alias for /removeop
-      handleCommand = '/removeop';
-    } else {
-      handleCommand = command;
-    }
-    
-    await handleUserManagement(chatId, handleCommand, bot);
+    await handleUserManagement(chatId, msg.text, bot);
   } catch (error) {
-    console.error('Error handling user management command:', error);
-    await bot.sendMessage(msg.chat.id, "处理用户管理命令时出错，请重试。");
+    console.error('Error handling user management:', error);
+    await bot.sendMessage(msg.chat.id, "处理用户管理时出错，请重试。");
   }
 });
 
@@ -345,48 +309,6 @@ bot.on('message', async (msg) => {
 // Error handling for polling
 bot.on('polling_error', (error) => {
   console.error('Polling error:', error);
-});
-
-// Handle operator add commands (with parameters)
-bot.onText(/^(设置操作人|\/op)\s+(.+)$/, async (msg, match) => {
-  try {
-    const chatId = msg.chat.id;
-    const username = msg.from.username;
-    const targetUsername = match[2].trim();
-    
-    if (!await isUsernameAllowed(username)) {
-      await bot.sendMessage(chatId, "您没有权限使用此命令。");
-      return;
-    }
-    
-    // Handle by converting to the standardized format for the existing handler
-    const modifiedMsg = { ...msg, text: `加操作人 ${targetUsername}` };
-    await handleAddOperatorCommand(bot, modifiedMsg);
-  } catch (error) {
-    console.error('Error handling operator add command:', error);
-    await bot.sendMessage(msg.chat.id, "添加操作人时出错，请重试。");
-  }
-});
-
-// Handle operator remove commands (with parameters)
-bot.onText(/^(移除操作人|\/removeop)\s+(.+)$/, async (msg, match) => {
-  try {
-    const chatId = msg.chat.id;
-    const username = msg.from.username;
-    const targetUsername = match[2].trim();
-    
-    if (!await isUsernameAllowed(username)) {
-      await bot.sendMessage(chatId, "您没有权限使用此命令。");
-      return;
-    }
-    
-    // Create a modified message with the standard command format
-    const modifiedMsg = { ...msg, text: `移除操作人 ${targetUsername}` };
-    await handleRemoveOperatorCommand(bot, modifiedMsg);
-  } catch (error) {
-    console.error('Error handling operator remove command:', error);
-    await bot.sendMessage(msg.chat.id, "移除操作人时出错，请重试。");
-  }
 });
 
 // Start Express server

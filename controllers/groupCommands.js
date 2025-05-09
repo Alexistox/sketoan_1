@@ -2,7 +2,7 @@ const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const Config = require('../models/Config');
-const { formatSmart, formatRateValue, formatTelegramMessage } = require('../utils/formatter');
+const { formatSmart, formatRateValue, formatTelegramMessage, formatDateUS } = require('../utils/formatter');
 
 /**
  * Xử lý lệnh clear (上课) - Reset các giá trị về 0
@@ -61,9 +61,9 @@ const handleClearCommand = async (bot, chatId, userId, senderName) => {
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Tạo response JSON
-    const todayStr = new Date().toLocaleDateString('vi-VN');
+    const todayDate = new Date();
     const responseData = {
-      date: todayStr,
+      date: formatDateUS(todayDate),
       depositData: { entries: [] },
       paymentData: { entries: [] },
       rate: formatRateValue(currentRate) + "%",
@@ -149,14 +149,14 @@ const handleRateCommand = async (bot, msg) => {
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy thông tin giao dịch gần đây
-    const todayStr = new Date().toLocaleDateString('vi-VN');
+    const todayDate = new Date();
     const depositData = await getDepositHistory(chatId);
     const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
-      date: todayStr,
+      date: formatDateUS(todayDate),
       depositData,
       paymentData,
       rate: formatRateValue(xValue) + "%",
@@ -242,14 +242,14 @@ const handleExchangeRateCommand = async (bot, msg) => {
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy thông tin giao dịch gần đây
-    const todayStr = new Date().toLocaleDateString('vi-VN');
+    const todayDate = new Date();
     const depositData = await getDepositHistory(chatId);
     const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
-      date: todayStr,
+      date: formatDateUS(todayDate),
       depositData,
       paymentData,
       rate: formatRateValue(group.rate) + "%",
@@ -336,14 +336,14 @@ const handleDualRateCommand = async (bot, msg) => {
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy thông tin giao dịch gần đây
-    const todayStr = new Date().toLocaleDateString('vi-VN');
+    const todayDate = new Date();
     const depositData = await getDepositHistory(chatId);
     const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
-      date: todayStr,
+      date: formatDateUS(todayDate),
       depositData,
       paymentData,
       rate: formatRateValue(newRate) + "%",
@@ -437,22 +437,23 @@ const getDepositHistory = async (chatId) => {
     if (transactions.length === 0) return { entries: [] };
     
     // Format lại các chi tiết với messageId và senderName
+    // Gán ID theo thứ tự giao dịch
     const entries = transactions.map((t, index) => {
       return {
+        id: index + 1, // ID theo thứ tự trong mảng
         details: t.details,
         messageId: t.messageId || null,
         chatLink: t.messageId ? `https://t.me/c/${chatId.toString().replace('-100', '')}/${t.messageId}` : null,
         timestamp: t.timestamp,
-        senderName: t.senderName || '',
-        id: index + 1 // Adding sequential ID starting from 1
+        senderName: t.senderName || ''
       };
     });
     
-    // Lấy 6 giao dịch gần đây nhất
-    return { entries: entries.slice(-6) };
+    // Chỉ lấy 6 giao dịch gần đây nhất nếu có quá nhiều giao dịch
+    return { entries: entries.slice(-6), totalCount: entries.length };
   } catch (error) {
     console.error('Error in getDepositHistory:', error);
-    return { entries: [] };
+    return { entries: [], totalCount: 0 };
   }
 };
 
@@ -478,22 +479,23 @@ const getPaymentHistory = async (chatId) => {
     if (transactions.length === 0) return { entries: [] };
     
     // Format lại các chi tiết với messageId và senderName
+    // Gán ID theo thứ tự giao dịch
     const entries = transactions.map((t, index) => {
       return {
+        id: index + 1, // ID theo thứ tự trong mảng
         details: t.details,
         messageId: t.messageId || null,
         chatLink: t.messageId ? `https://t.me/c/${chatId.toString().replace('-100', '')}/${t.messageId}` : null,
         timestamp: t.timestamp,
-        senderName: t.senderName || '',
-        id: index + 1 // Adding sequential ID starting from 1
+        senderName: t.senderName || ''
       };
     });
     
-    // Lấy 3 giao dịch gần đây nhất
-    return { entries: entries.slice(-3) };
+    // Chỉ lấy 3 giao dịch gần đây nhất nếu có quá nhiều giao dịch
+    return { entries: entries.slice(-3), totalCount: entries.length };
   } catch (error) {
     console.error('Error in getPaymentHistory:', error);
-    return { entries: [] };
+    return { entries: [], totalCount: 0 };
   }
 };
 

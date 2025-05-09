@@ -236,7 +236,6 @@ const commandPermissions = {
   '设置费率': 'operator',
   '设置汇率': 'operator',
   '下发': 'operator',
-  '%': 'operator',
   '上课': 'operator',
   '+': 'operator',
   '-': 'operator',
@@ -246,10 +245,6 @@ const commandPermissions = {
   '/d': 'operator',
   '/hiddenCards': 'operator',
   '/m': 'operator',
-  '设置操作人': 'operator',
-  '移除操作人': 'operator',
-  '/op': 'operator',
-  '/removeop': 'operator',
   
   // User commands - anyone can use
   '/t': 'user',

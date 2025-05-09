@@ -63,6 +63,18 @@ const isTrc20Address = (str) => {
 };
 
 /**
+ * Format date in US style (MM/DD/YYYY)
+ * @param {Date} date - Date to format
+ * @returns {String} - Formatted date string
+ */
+const formatDateUS = (date) => {
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  const year = date.getFullYear();
+  return `${month}/${day}/${year}`;
+};
+
+/**
  * Tạo tin nhắn telegram không sử dụng markdown
  * @param {Object} jsonData - Dữ liệu cần format
  * @returns {String} - Chuỗi đã định dạng
@@ -70,18 +82,20 @@ const isTrc20Address = (str) => {
 const formatTelegramMessage = (jsonData) => {
   let output = '';
   
-  // Date header 
-  output += `🧧今日是 ${jsonData.date} 🧧\n`;
+  // Date header - using US format (MM/DD/YYYY)
+  const currentDate = new Date();
+  const formattedDate = formatDateUS(currentDate);
+  output += `🧧今日是 ${formattedDate} 🧧\n`;
   
   // Deposits section
   if (jsonData.depositData && jsonData.depositData.entries && jsonData.depositData.entries.length > 0) {
-    const depositCount = jsonData.depositData.entries.length;
+    const depositCount = jsonData.depositData.totalCount || jsonData.depositData.entries.length;
     output += `📥已入账 (${depositCount}笔):\n`;
     
     // Format giao dịch với ID và link
-    jsonData.depositData.entries.forEach((entry, index) => {
-      // Use the messageId or an incrementing number as the transaction ID
-      const id = entry.id || (index + 1);
+    jsonData.depositData.entries.forEach((entry) => {
+      // Sử dụng ID từ entry thay vì tạo ID mới
+      const id = entry.id || (entry.index + 1);
       if (entry.messageId && entry.chatLink) {
         // Tạo link đến tin nhắn gốc với ID là phần clickable
         output += `[${id}](${entry.chatLink}). ${entry.details}`;
@@ -106,25 +120,24 @@ const formatTelegramMessage = (jsonData) => {
   
   // Payments section
   if (jsonData.paymentData && jsonData.paymentData.entries && jsonData.paymentData.entries.length > 0) {
-    const paymentCount = jsonData.paymentData.entries.length;
+    const paymentCount = jsonData.paymentData.totalCount || jsonData.paymentData.entries.length;
     output += `📤已下发 (${paymentCount}笔):\n`;
     
     // Format giao dịch với ID và link
-    jsonData.paymentData.entries.forEach((entry, index) => {
-      // Use the messageId or an incrementing number as the transaction ID
-      const id = entry.id || (index + 1);
+    jsonData.paymentData.entries.forEach((entry) => {
       // Dùng ký hiệu ! trước ID của payment
-      const displayId = `!${id}`;
+      // Sử dụng ID từ entry thay vì tạo ID mới
+      const id = `!${entry.id || (entry.index + 1)}`;
       if (entry.messageId && entry.chatLink) {
         // Tạo link đến tin nhắn gốc với ID là phần clickable
-        output += `[${displayId}](${entry.chatLink}). ${entry.details}`;
+        output += `[${id}](${entry.chatLink}). ${entry.details}`;
         // Thêm tên người gửi ở cuối dòng
         if (entry.senderName) {
           output += ` - ${entry.senderName}`;
         }
         output += '\n';
       } else {
-        output += `${displayId}. ${entry.details}`;
+        output += `${id}. ${entry.details}`;
         // Thêm tên người gửi ở cuối dòng
         if (entry.senderName) {
           output += ` - ${entry.senderName}`;
@@ -136,22 +149,22 @@ const formatTelegramMessage = (jsonData) => {
   } else {
     output += "📤已下发: 没有\n\n";
   }
-  output += `总入款 💰: ${jsonData.totalAmount}\n`;
+  output += `总入款💰: ${jsonData.totalAmount}\n`;
   // Rate information
-  const rateInfo = `费率=${jsonData.rate}|💱入款汇率=${jsonData.exchangeRate}`;
-  
+  const rateInfo = `费率=${jsonData.rate}|🔃汇率=${jsonData.exchangeRate}\n`;
+ 
   // Thêm ví dụ nếu có
   let rateInfoWithExample = rateInfo;
   if (jsonData.example) {
-    rateInfoWithExample += `例子: 100.000=${jsonData.example} ${jsonData.currencyUnit || 'USDT'}`;
+    rateInfoWithExample += `\n例子: 100.000=${jsonData.example} ${jsonData.currencyUnit || 'USDT'}`;
   }
   
   output += `${rateInfoWithExample}\n\n`;
   
   // Summary section
   output += `应下发 ${jsonData.currencyUnit || 'USDT'}: ${jsonData.totalUSDT}\n`;
-  output += `总下发 ${jsonData.currencyUnit || 'USDT'}: ${jsonData.paidUSDT}\n`;
-  output += `未下发${jsonData.currencyUnit || 'USDT'}: ${jsonData.remainingUSDT}💎`;
+  output += `已下发 ${jsonData.currencyUnit || 'USDT'}: ${jsonData.paidUSDT}\n`;
+  output += `未下发 ${jsonData.currencyUnit || 'USDT'}: ${jsonData.remainingUSDT}`;
   
   // Cards section (if present)
   if (jsonData.cards && jsonData.cards.length > 0) {
@@ -167,5 +180,6 @@ module.exports = {
   isMathExpression,
   isSingleNumber,
   isTrc20Address,
-  formatTelegramMessage
+  formatTelegramMessage,
+  formatDateUS
 }; 
