@@ -9,7 +9,7 @@ const {
   isTrc20Address,
   formatTelegramMessage
 } = require('../utils/formatter');
-const { isUserOwner, isUserAdmin, isUserOperator, createOrUpdateUser } = require('../utils/permissions');
+const { isUserOwner, isUserAdmin, isUserOperator } = require('../utils/permissions');
 
 const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
@@ -353,24 +353,57 @@ const handleMessage = async (bot, msg, cache) => {
 // Hàm kiểm tra và đăng ký người dùng mới
 const checkAndRegisterUser = async (userId, username, firstName, lastName) => {
   try {
-    // Kiểm tra xem đã có owner chưa
-    const ownerExists = await User.findOne({ isOwner: true });
+    let user = await User.findOne({ userId: userId.toString() });
     
-    // Nếu chưa có owner, user đầu tiên sẽ là owner và admin
-    const isFirstUser = !ownerExists;
-    
-    // Tạo hoặc cập nhật người dùng
-    const user = await createOrUpdateUser({
-      userId: userId.toString(),
-      username,
-      firstName,
-      lastName,
-      isOwner: isFirstUser,
-      isAdmin: isFirstUser
-    });
-    
-    if (isFirstUser && user) {
-      console.log(`User ${username} (ID: ${userId}) is now the bot owner and admin`);
+    if (!user) {
+      // Kiểm tra xem đã có owner chưa
+      const ownerExists = await User.findOne({ isOwner: true });
+      
+      // Nếu chưa có owner, user đầu tiên sẽ là owner và admin
+      const isFirstUser = !ownerExists;
+      
+      user = new User({
+        userId: userId.toString(),
+        username,
+        firstName,
+        lastName,
+        isOwner: isFirstUser,
+        isAdmin: isFirstUser,
+        groupPermissions: []
+      });
+      
+      await user.save();
+      
+      if (isFirstUser) {
+        console.log(`User ${username} (ID: ${userId}) is now the bot owner and admin`);
+      }
+    } else {
+      // Cập nhật thông tin người dùng nếu đã tồn tại nhưng chưa có thông tin đầy đủ
+      let hasChanges = false;
+      
+      // Cập nhật username nếu trống
+      if (!user.username && username) {
+        user.username = username;
+        hasChanges = true;
+      }
+      
+      // Cập nhật firstName nếu trống
+      if (!user.firstName && firstName) {
+        user.firstName = firstName;
+        hasChanges = true;
+      }
+      
+      // Cập nhật lastName nếu trống
+      if (!user.lastName && lastName) {
+        user.lastName = lastName;
+        hasChanges = true;
+      }
+      
+      // Lưu các thay đổi nếu có
+      if (hasChanges) {
+        await user.save();
+        console.log(`Updated user information for ${username} (ID: ${userId})`);
+      }
     }
     
     return user;
