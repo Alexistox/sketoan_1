@@ -78,9 +78,9 @@ const handlePlusCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `${new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })} +${formatSmart(amountVND)} (${cardCode}) = ${formatSmart(newUSDT)} ${currencyUnit}`;
+      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} +${formatSmart(amountVND)} (${cardCode}) = ${formatSmart(newUSDT)} ${currencyUnit}`;
     } else {
-      details = `${new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })} +${formatSmart(amountVND)} = ${formatSmart(newUSDT)} ${currencyUnit}`;
+      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} +${formatSmart(amountVND)} = ${formatSmart(newUSDT)} ${currencyUnit}`;
     }
     
     // Lưu giao dịch mới
@@ -239,9 +239,9 @@ const handleMinusCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `${new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })} -${formatSmart(amountVND)} (${cardCode}) = -${formatSmart(minusUSDT)} ${currencyUnit}`;
+      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} -${formatSmart(amountVND)} (${cardCode}) = -${formatSmart(minusUSDT)} ${currencyUnit}`;
     } else {
-      details = `${new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })} -${formatSmart(amountVND)} = -${formatSmart(minusUSDT)} ${currencyUnit}`;
+      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} -${formatSmart(amountVND)} = -${formatSmart(minusUSDT)} ${currencyUnit}`;
     }
     
     // Lưu giao dịch mới
@@ -405,9 +405,9 @@ const handlePercentCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `${new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })} +${formatSmart(payUSDT)} ${currencyUnit} (${cardCode})`;
+      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} +${formatSmart(payUSDT)} ${currencyUnit} (${cardCode})`;
     } else {
-      details = `${new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })} +${formatSmart(payUSDT)} ${currencyUnit}`;
+      details = `${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} +${formatSmart(payUSDT)} ${currencyUnit}`;
     }
     
     // Lưu giao dịch mới
