@@ -79,7 +79,7 @@ const handleClearCommand = async (bot, chatId, userId, senderName) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response);
+    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
     
   } catch (error) {
     console.error('Error in handleClearCommand:', error);
@@ -172,7 +172,7 @@ const handleRateCommand = async (bot, msg) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response);
+    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
     
   } catch (error) {
     console.error('Error in handleRateCommand:', error);
@@ -265,7 +265,7 @@ const handleExchangeRateCommand = async (bot, msg) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response);
+    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
     
   } catch (error) {
     console.error('Error in handleExchangeRateCommand:', error);
@@ -359,7 +359,7 @@ const handleDualRateCommand = async (bot, msg) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response);
+    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
     
   } catch (error) {
     console.error('Error in handleDualRateCommand:', error);

@@ -81,12 +81,12 @@ const formatTelegramMessage = (jsonData) => {
     // Format giao dịch với ID và link
     jsonData.depositData.entries.forEach((entry, index) => {
       const id = index + 1;
-      output += `${id}. ${entry.details}`;
-      if (entry.messageId) {
-        // Tạo link đến tin nhắn gốc
-        output += ` [🔗](${entry.chatLink})`;
+      if (entry.messageId && entry.chatLink) {
+        // Tạo link đến tin nhắn gốc với ID là phần clickable
+        output += `[${id}](${entry.chatLink}). ${entry.details}\n`;
+      } else {
+        output += `${id}. ${entry.details}\n`;
       }
-      output += '\n';
     });
     output += '\n';
   } else {
@@ -101,12 +101,12 @@ const formatTelegramMessage = (jsonData) => {
     // Format giao dịch với ID và link
     jsonData.paymentData.entries.forEach((entry, index) => {
       const id = index + 1;
-      output += `${id}. ${entry.details}`;
-      if (entry.messageId) {
-        // Tạo link đến tin nhắn gốc
-        output += ` [🔗](${entry.chatLink})`;
+      if (entry.messageId && entry.chatLink) {
+        // Tạo link đến tin nhắn gốc với ID là phần clickable
+        output += `[${id}](${entry.chatLink}). ${entry.details}\n`;
+      } else {
+        output += `${id}. ${entry.details}\n`;
       }
-      output += '\n';
     });
     output += '\n';
   } else {

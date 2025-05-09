@@ -158,7 +158,7 @@ const handlePlusCommand = async (bot, msg) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response);
+    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
     
   } catch (error) {
     console.error('Error in handlePlusCommand:', error);
@@ -315,7 +315,7 @@ const handleMinusCommand = async (bot, msg) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response);
+    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
     
   } catch (error) {
     console.error('Error in handleMinusCommand:', error);
@@ -458,7 +458,7 @@ const handlePercentCommand = async (bot, msg) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response);
+    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
     
   } catch (error) {
     console.error('Error in handlePercentCommand:', error);

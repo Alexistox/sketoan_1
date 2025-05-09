@@ -190,7 +190,7 @@ const handleReportCommand = async (bot, chatId, senderName) => {
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData);
-    bot.sendMessage(chatId, response);
+    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
   } catch (error) {
     console.error('Error in handleReportCommand:', error);
     bot.sendMessage(chatId, "处理报告命令时出错。请稍后再试。");
