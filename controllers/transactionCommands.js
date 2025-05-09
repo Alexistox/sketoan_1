@@ -46,6 +46,43 @@ const handlePlusCommand = async (bot, msg) => {
       bot.sendMessage(chatId, "金额无效。");
       return;
     }
+
+    // Bỏ qua giao dịch +0
+    if (amountVND === 0) {
+      // Chỉ hiển thị thông tin hiện tại mà không ghi nhận giao dịch
+      const todayDate = new Date();
+      const depositData = await getDepositHistory(chatId);
+      const paymentData = await getPaymentHistory(chatId);
+      const cardSummary = await getCardSummary(chatId);
+      
+      // Tạo response JSON
+      const responseData = {
+        date: formatDateUS(todayDate),
+        depositData,
+        paymentData,
+        rate: formatRateValue(group.rate) + "%",
+        exchangeRate: formatRateValue(group.exchangeRate),
+        totalAmount: formatSmart(group.totalVND),
+        totalUSDT: formatSmart(group.totalUSDT),
+        paidUSDT: formatSmart(group.usdtPaid),
+        remainingUSDT: formatSmart(group.remainingUSDT),
+        currencyUnit,
+        cards: cardSummary
+      };
+      
+      // Format và gửi tin nhắn
+      const response = formatTelegramMessage(responseData);
+      
+      // Kiểm tra trạng thái hiển thị buttons
+      const showButtons = await getButtonsStatus(chatId);
+      const keyboard = showButtons ? await getInlineKeyboard(chatId) : null;
+      
+      bot.sendMessage(chatId, response, { 
+        parse_mode: 'Markdown',
+        reply_markup: keyboard
+      });
+      return;
+    }
    
     
     // Tìm hoặc tạo group
