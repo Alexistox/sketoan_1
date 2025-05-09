@@ -377,33 +377,6 @@ const checkAndRegisterUser = async (userId, username, firstName, lastName) => {
       if (isFirstUser) {
         console.log(`User ${username} (ID: ${userId}) is now the bot owner and admin`);
       }
-    } else {
-      // Cập nhật thông tin người dùng nếu đã tồn tại nhưng chưa có thông tin đầy đủ
-      let hasChanges = false;
-      
-      // Cập nhật username nếu trống
-      if (!user.username && username) {
-        user.username = username;
-        hasChanges = true;
-      }
-      
-      // Cập nhật firstName nếu trống
-      if (!user.firstName && firstName) {
-        user.firstName = firstName;
-        hasChanges = true;
-      }
-      
-      // Cập nhật lastName nếu trống
-      if (!user.lastName && lastName) {
-        user.lastName = lastName;
-        hasChanges = true;
-      }
-      
-      // Lưu các thay đổi nếu có
-      if (hasChanges) {
-        await user.save();
-        console.log(`Updated user information for ${username} (ID: ${userId})`);
-      }
     }
     
     return user;
