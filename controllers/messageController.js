@@ -18,6 +18,15 @@ const User = require('../models/User');
 const Config = require('../models/Config');
 const MessageLog = require('../models/MessageLog');
 
+const {
+  handleCalculateUsdtCommand,
+  handleCalculateVndCommand,
+  handleMathExpression,
+  handleReportCommand,
+  handleHelpCommand,
+  handleStartCommand
+} = require('./utilCommands');
+
 // Hàm xử lý tin nhắn chính
 const handleMessage = async (bot, msg, cache) => {
   try {
@@ -586,19 +595,6 @@ const {
   displayInlineButtons,
   handleGetUsdtAddressCommand
 } = require('./userCommands');
-
-const {
-  handleCalculateUsdtCommand,
-  handleCalculateVndCommand,
-  handleMathExpression,
-  handleReportCommand,
-  handleHelpCommand
-} = require('./utilCommands');
-
-const {
-  handleImageBankInfo,
-  handleReplyImageBankInfo
-} = require('./imageCommands');
 
 module.exports = {
   handleMessage
