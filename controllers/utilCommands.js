@@ -2,7 +2,7 @@ const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const Config = require('../models/Config');
-const { formatSmart, formatRateValue, formatTelegramMessage, isTrc20Address } = require('../utils/formatter');
+const { formatSmart, formatRateValue, formatTelegramMessage, isTrc20Address, formatDateUS } = require('../utils/formatter');
 const { getDepositHistory, getPaymentHistory, getCardSummary } = require('./groupCommands');
 
 /**
@@ -168,7 +168,7 @@ const handleReportCommand = async (bot, chatId, senderName) => {
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy thông tin tất cả các giao dịch trong ngày
-    const todayStr = new Date().toLocaleDateString('vi-VN');
+    const todayDate = new Date();
     const lastClearDate = group.lastClearDate;
     
     // Lấy tất cả các giao dịch deposit/withdraw
@@ -216,7 +216,7 @@ const handleReportCommand = async (bot, chatId, senderName) => {
     
     // Tạo response JSON với tất cả giao dịch
     const responseData = {
-      date: todayStr,
+      date: formatDateUS(todayDate),
       depositData: { 
         entries: depositEntries, 
         totalCount: depositEntries.length 
@@ -282,6 +282,9 @@ const handleHelpCommand = async (bot, chatId) => {
 /delete [ID] - 删除交易记录
 /d [费率] [汇率] - 设置临时费率和汇率
 /m [单位] - 设置货币单位
+/inline [按钮文字]|[命令内容] - 添加自定义按钮
+/removeinline [按钮文字] - 删除自定义按钮
+/buttons - 显示当前所有自定义按钮
 
 *管理员命令:*
 /usdt [地址] - 设置USDT地址
@@ -289,6 +292,7 @@ const handleHelpCommand = async (bot, chatId) => {
 移除操作人 @username - 移除操作员
 /op @username - 添加操作员
 /removeop @username - 移除操作员
+/listgroups - 列出所有群组
 
 *所有者命令:*
 /ad @username - 添加管理员

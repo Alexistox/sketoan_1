@@ -2,7 +2,7 @@ const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const Config = require('../models/Config');
-const { formatSmart, formatRateValue, formatTelegramMessage } = require('../utils/formatter');
+const { formatSmart, formatRateValue, formatTelegramMessage, formatDateUS } = require('../utils/formatter');
 
 /**
  * Xử lý lệnh clear (上课) - Reset các giá trị về 0
@@ -61,9 +61,9 @@ const handleClearCommand = async (bot, chatId, userId, senderName) => {
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Tạo response JSON
-    const todayStr = new Date().toLocaleDateString('vi-VN');
+    const todayDate = new Date();
     const responseData = {
-      date: todayStr,
+      date: formatDateUS(todayDate),
       depositData: { entries: [] },
       paymentData: { entries: [] },
       rate: formatRateValue(currentRate) + "%",
@@ -149,14 +149,14 @@ const handleRateCommand = async (bot, msg) => {
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy thông tin giao dịch gần đây
-    const todayStr = new Date().toLocaleDateString('vi-VN');
+    const todayDate = new Date();
     const depositData = await getDepositHistory(chatId);
     const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
-      date: todayStr,
+      date: formatDateUS(todayDate),
       depositData,
       paymentData,
       rate: formatRateValue(xValue) + "%",
@@ -242,14 +242,14 @@ const handleExchangeRateCommand = async (bot, msg) => {
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy thông tin giao dịch gần đây
-    const todayStr = new Date().toLocaleDateString('vi-VN');
+    const todayDate = new Date();
     const depositData = await getDepositHistory(chatId);
     const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
-      date: todayStr,
+      date: formatDateUS(todayDate),
       depositData,
       paymentData,
       rate: formatRateValue(group.rate) + "%",
@@ -336,14 +336,14 @@ const handleDualRateCommand = async (bot, msg) => {
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy thông tin giao dịch gần đây
-    const todayStr = new Date().toLocaleDateString('vi-VN');
+    const todayDate = new Date();
     const depositData = await getDepositHistory(chatId);
     const paymentData = await getPaymentHistory(chatId);
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
     const responseData = {
-      date: todayStr,
+      date: formatDateUS(todayDate),
       depositData,
       paymentData,
       rate: formatRateValue(newRate) + "%",

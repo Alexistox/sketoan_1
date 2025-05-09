@@ -4,6 +4,7 @@ const Config = require('../models/Config');
 const { isTrc20Address } = require('../utils/formatter');
 const { migrateUserGroupsToOperators } = require('../utils/dataConverter');
 const { isUserOwner, isUserAdmin, isUserOperator, extractUserFromCommand } = require('../utils/permissions');
+const Transaction = require('../models/Transaction');
 
 /**
  * Xử lý lệnh thêm admin (/ad) - Chỉ Owner
@@ -775,6 +776,301 @@ const handleMigrateDataCommand = async (bot, msg) => {
   }
 };
 
+/**
+ * Xử lý lệnh hiển thị danh sách nhóm
+ */
+const handleListGroupsCommand = async (bot, msg) => {
+  try {
+    const userId = msg.from.id;
+    
+    // Chỉ cho phép owner hoặc admin sử dụng lệnh này
+    if (!(await isUserAdmin(userId))) {
+      bot.sendMessage(msg.chat.id, "⛔ 只有机器人所有者和管理员才能使用此命令！");
+      return;
+    }
+    
+    // Lấy tất cả các nhóm từ database
+    const groups = await Group.find({});
+    
+    if (groups.length === 0) {
+      bot.sendMessage(msg.chat.id, "机器人还没有加入任何群组。");
+      return;
+    }
+    
+    // Format danh sách nhóm
+    let message = "*🔄 机器人加入的群组列表:*\n\n";
+    
+    for (const group of groups) {
+      // Lấy thông tin tên nhóm nếu có
+      let groupTitle = "未知群组";
+      try {
+        const chatInfo = await bot.getChat(group.chatId);
+        groupTitle = chatInfo.title || `Chat ID: ${group.chatId}`;
+      } catch (error) {
+        // Không lấy được thông tin chat, có thể bot đã bị đá khỏi nhóm
+        groupTitle = `未知群组 (ID: ${group.chatId})`;
+      }
+      
+      // Đếm số lượng giao dịch trong nhóm
+      const transactionCount = await Transaction.countDocuments({ 
+        chatId: group.chatId,
+        skipped: { $ne: true }
+      });
+      
+      // Thêm vào message
+      message += `*${groupTitle}*\n`;
+      message += `Chat ID: \`${group.chatId}\`\n`;
+      message += `Rate: ${group.rate}% | Exchange Rate: ${group.exchangeRate}\n`;
+      message += `Transactions: ${transactionCount}\n`;
+      message += `Last Clear: ${group.lastClearDate ? group.lastClearDate.toLocaleString() : 'Never'}\n\n`;
+    }
+    
+    message += `Total Groups: ${groups.length}`;
+    
+    // Gửi tin nhắn
+    bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
+    
+  } catch (error) {
+    console.error('Error in handleListGroupsCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理列出群组命令时出错。请稍后再试。");
+  }
+};
+
+/**
+ * Xử lý lệnh thêm nút inline keyboard
+ */
+const handleAddInlineCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const messageText = msg.text;
+    
+    // Kiểm tra quyền Operator
+    if (!(await isUserOperator(userId, chatId))) {
+      bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
+      return;
+    }
+    
+    // Phân tích cú pháp tin nhắn
+    const parts = messageText.split('/inline ');
+    if (parts.length !== 2) {
+      bot.sendMessage(chatId, "指令无效。格式为：/inline 按钮文字|命令内容");
+      return;
+    }
+    
+    const inputParts = parts[1].split('|');
+    if (inputParts.length !== 2) {
+      bot.sendMessage(chatId, "指令无效。格式为：/inline 按钮文字|命令内容");
+      return;
+    }
+    
+    const buttonText = inputParts[0].trim();
+    const commandText = inputParts[1].trim();
+    
+    if (!buttonText || !commandText) {
+      bot.sendMessage(chatId, "按钮文字和命令内容不能为空。");
+      return;
+    }
+    
+    // Tìm hoặc tạo Config cho inline buttons
+    let inlineConfig = await Config.findOne({ key: `INLINE_BUTTONS_${chatId}` });
+    
+    let buttons = [];
+    if (inlineConfig) {
+      try {
+        buttons = JSON.parse(inlineConfig.value);
+      } catch (error) {
+        buttons = [];
+      }
+    } else {
+      inlineConfig = new Config({
+        key: `INLINE_BUTTONS_${chatId}`,
+        value: JSON.stringify([])
+      });
+    }
+    
+    // Kiểm tra xem nút đã tồn tại chưa
+    const existingButtonIndex = buttons.findIndex(b => b.text === buttonText);
+    
+    if (existingButtonIndex >= 0) {
+      // Cập nhật nút hiện có
+      buttons[existingButtonIndex] = { text: buttonText, command: commandText };
+      bot.sendMessage(chatId, `✅ 已更新现有按钮 "${buttonText}"`);
+    } else {
+      // Thêm nút mới
+      buttons.push({ text: buttonText, command: commandText });
+      bot.sendMessage(chatId, `✅ 已添加新按钮 "${buttonText}"`);
+    }
+    
+    // Lưu cấu hình
+    inlineConfig.value = JSON.stringify(buttons);
+    await inlineConfig.save();
+    
+    // Hiển thị danh sách các nút hiện tại
+    await displayInlineButtons(bot, chatId);
+    
+  } catch (error) {
+    console.error('Error in handleAddInlineCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理添加按钮命令时出错。请稍后再试。");
+  }
+};
+
+/**
+ * Xử lý lệnh xóa nút inline keyboard
+ */
+const handleRemoveInlineCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const messageText = msg.text;
+    
+    // Kiểm tra quyền Operator
+    if (!(await isUserOperator(userId, chatId))) {
+      bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
+      return;
+    }
+    
+    // Phân tích cú pháp tin nhắn
+    const parts = messageText.split('/removeinline ');
+    if (parts.length !== 2) {
+      bot.sendMessage(chatId, "指令无效。格式为：/removeinline 按钮文字");
+      return;
+    }
+    
+    const buttonText = parts[1].trim();
+    
+    if (!buttonText) {
+      bot.sendMessage(chatId, "按钮文字不能为空。");
+      return;
+    }
+    
+    // Tìm cấu hình inline buttons
+    const inlineConfig = await Config.findOne({ key: `INLINE_BUTTONS_${chatId}` });
+    
+    if (!inlineConfig) {
+      bot.sendMessage(chatId, "还没有设置任何按钮。");
+      return;
+    }
+    
+    let buttons = [];
+    try {
+      buttons = JSON.parse(inlineConfig.value);
+    } catch (error) {
+      bot.sendMessage(chatId, "按钮配置无效。");
+      return;
+    }
+    
+    // Tìm và xóa nút
+    const initialLength = buttons.length;
+    buttons = buttons.filter(b => b.text !== buttonText);
+    
+    if (buttons.length < initialLength) {
+      // Lưu cấu hình mới
+      inlineConfig.value = JSON.stringify(buttons);
+      await inlineConfig.save();
+      bot.sendMessage(chatId, `✅ 已删除按钮 "${buttonText}"`);
+    } else {
+      bot.sendMessage(chatId, `❌ 未找到按钮 "${buttonText}"`);
+    }
+    
+    // Hiển thị danh sách các nút hiện tại
+    await displayInlineButtons(bot, chatId);
+    
+  } catch (error) {
+    console.error('Error in handleRemoveInlineCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理删除按钮命令时出错。请稍后再试。");
+  }
+};
+
+/**
+ * Hiển thị danh sách các nút inline hiện tại
+ */
+const displayInlineButtons = async (bot, chatId) => {
+  try {
+    // Tìm cấu hình inline buttons
+    const inlineConfig = await Config.findOne({ key: `INLINE_BUTTONS_${chatId}` });
+    
+    if (!inlineConfig) {
+      bot.sendMessage(chatId, "还没有设置任何按钮。");
+      return;
+    }
+    
+    let buttons = [];
+    try {
+      buttons = JSON.parse(inlineConfig.value);
+    } catch (error) {
+      bot.sendMessage(chatId, "按钮配置无效。");
+      return;
+    }
+    
+    if (buttons.length === 0) {
+      bot.sendMessage(chatId, "还没有设置任何按钮。");
+      return;
+    }
+    
+    // Hiển thị danh sách nút
+    let message = "*当前按钮列表:*\n\n";
+    
+    buttons.forEach((button, index) => {
+      message += `${index + 1}. 文字: *${button.text}*\n`;
+      message += `   命令: \`${button.command}\`\n\n`;
+    });
+    
+    // Tạo keyboard inline
+    const inlineKeyboard = {
+      inline_keyboard: buttons.map(button => [
+        { text: button.text, callback_data: button.command }
+      ])
+    };
+    
+    // Gửi tin nhắn với keyboard
+    bot.sendMessage(chatId, message, {
+      parse_mode: 'Markdown',
+      reply_markup: inlineKeyboard
+    });
+    
+  } catch (error) {
+    console.error('Error in displayInlineButtons:', error);
+    bot.sendMessage(chatId, "显示按钮列表时出错。请稍后再试。");
+  }
+};
+
+/**
+ * Xử lý callback từ nút inline
+ */
+const handleInlineButtonCallback = async (bot, callbackQuery) => {
+  try {
+    const chatId = callbackQuery.message.chat.id;
+    const userId = callbackQuery.from.id;
+    const command = callbackQuery.data;
+    
+    // Acknowledge the callback query to remove the loading indicator
+    await bot.answerCallbackQuery(callbackQuery.id);
+    
+    // Kiểm tra quyền người dùng
+    if (!(await isUserOperator(userId, chatId))) {
+      bot.sendMessage(chatId, "⛔ 您无权使用此功能！需要操作员权限。");
+      return;
+    }
+    
+    // Tạo một tin nhắn mới với nội dung của nút
+    const msg = {
+      chat: { id: chatId },
+      from: callbackQuery.from,
+      text: command,
+      message_id: callbackQuery.message.message_id
+    };
+    
+    // Gửi tin nhắn đến hàm xử lý tin nhắn
+    // Đây là một kỹ thuật để tái sử dụng logic xử lý lệnh
+    const { handleMessage } = require('./messageController');
+    await handleMessage(bot, msg);
+    
+  } catch (error) {
+    console.error('Error in handleInlineButtonCallback:', error);
+  }
+};
+
 module.exports = {
   handleAddOperatorCommand,
   handleRemoveOperatorCommand,
@@ -790,5 +1086,10 @@ module.exports = {
   handleListAdminsCommand,
   handleAddOperatorInGroupCommand,
   handleRemoveOperatorInGroupCommand,
-  handleListOperatorsCommand
+  handleListOperatorsCommand,
+  handleListGroupsCommand,
+  handleAddInlineCommand,
+  handleRemoveInlineCommand,
+  handleInlineButtonCallback,
+  displayInlineButtons
 }; 
