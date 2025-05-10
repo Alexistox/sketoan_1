@@ -117,9 +117,9 @@ const handlePlusCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `\`${formatTimeString(new Date())}\` +${formatSmart(amountVND)}\\*${rateFactor}/${yValue} = ${formatSmart(newUSDT)} (${cardCode}) \`${senderName}\``;
+      details = `\`${formatTimeString(new Date())}\` *${formatSmart(amountVND)}*\\*${rateFactor}/${yValue} = ${formatSmart(newUSDT)} (${cardCode}) \`${senderName}\``;
     } else {
-      details = `\`${formatTimeString(new Date())}\` +${formatSmart(amountVND)}\\*${rateFactor}/${yValue} = ${formatSmart(newUSDT)} \`${senderName}\``;
+      details = `\`${formatTimeString(new Date())}\` *${formatSmart(amountVND)}*\\*${rateFactor}/${yValue} = ${formatSmart(newUSDT)} \`${senderName}\``;
     }
     
     // Lưu giao dịch mới
@@ -289,9 +289,9 @@ const handleMinusCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `\`${formatTimeString(new Date())}\` -${formatSmart(amountVND)}\\*${rateFactor}/${yValue} = -${formatSmart(minusUSDT)} (${cardCode}) \`${senderName}\``;
+      details = `\`${formatTimeString(new Date())}\` -*${formatSmart(amountVND)}*\\*${rateFactor}/${yValue} = -${formatSmart(minusUSDT)} (${cardCode}) \`${senderName}\``;
     } else {
-      details = `\`${formatTimeString(new Date())}\` -${formatSmart(amountVND)}\\*${rateFactor}/${yValue} = -${formatSmart(minusUSDT)} \`${senderName}\``;
+      details = `\`${formatTimeString(new Date())}\` -*${formatSmart(amountVND)}*\\*${rateFactor}/${yValue} = -${formatSmart(minusUSDT)} \`${senderName}\``;
     }
     // Lưu giao dịch mới
     const transaction = new Transaction({
@@ -462,9 +462,9 @@ const handlePercentCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `\`${formatTimeString(new Date())}\`     ${formatSmart(payUSDT)}  ${currencyUnit} (${cardCode})`;
+      details = `\`${formatTimeString(new Date())}\`    *${formatSmart(payUSDT)}*  ${currencyUnit} (${cardCode})`;
     } else {
-      details = `\`${formatTimeString(new Date())}\`     ${formatSmart(payUSDT)}  ${currencyUnit}`;
+      details = `\`${formatTimeString(new Date())}\`    *${formatSmart(payUSDT)}*  ${currencyUnit}`;
     }
     
     // Lưu giao dịch mới
