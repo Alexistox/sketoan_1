@@ -117,9 +117,9 @@ const handlePlusCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `${formatTimeString(new Date())} +${formatSmart(amountVND)}\\*${rateFactor}/${yValue}= ${formatSmart(newUSDT)} (${cardCode}) \`${senderName}\``;
+      details = `\`${formatTimeString(new Date())}\` +${formatSmart(amountVND)}\\*${rateFactor}/${yValue} = ${formatSmart(newUSDT)} (${cardCode}) \`${senderName}\``;
     } else {
-      details = `${formatTimeString(new Date())} +${formatSmart(amountVND)}\\*${rateFactor}/${yValue}= ${formatSmart(newUSDT)} \`${senderName}\``;
+      details = `\`${formatTimeString(new Date())}\` +${formatSmart(amountVND)}\\*${rateFactor}/${yValue} = ${formatSmart(newUSDT)} \`${senderName}\``;
     }
     
     // Lưu giao dịch mới
@@ -273,6 +273,9 @@ const handleMinusCommand = async (bot, msg) => {
     const yValue = group.exchangeRate;
     const minusUSDT = (amountVND / yValue) * (1 - xValue / 100);
     
+    // Tính toán phần (1-(费率/100))
+    const rateFactor = (1 - xValue / 100).toFixed(2);
+    
     // Cập nhật group
     group.totalVND -= amountVND;
     group.totalUSDT -= minusUSDT;
@@ -286,9 +289,9 @@ const handleMinusCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `${formatTimeString(new Date())} -${formatSmart(amountVND)}\\*${rateFactor}/${yValue}= -${formatSmart(newUSDT)} (${cardCode}) \`${senderName}\``;
+      details = `\`${formatTimeString(new Date())}\` -${formatSmart(amountVND)}\\*${rateFactor}/${yValue} = -${formatSmart(minusUSDT)} (${cardCode}) \`${senderName}\``;
     } else {
-      details = `${formatTimeString(new Date())} -${formatSmart(amountVND)}\\*${rateFactor}/${yValue}= -${formatSmart(newUSDT)} \`${senderName}\``;
+      details = `\`${formatTimeString(new Date())}\` -${formatSmart(amountVND)}\\*${rateFactor}/${yValue} = -${formatSmart(minusUSDT)} \`${senderName}\``;
     }
     // Lưu giao dịch mới
     const transaction = new Transaction({
@@ -459,9 +462,9 @@ const handlePercentCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `${formatTimeString(new Date())} +${formatSmart(payUSDT)} ${currencyUnit} (${cardCode}) ${senderName}`;
+      details = `\`${formatTimeString(new Date())}\`     ${formatSmart(payUSDT)}  ${currencyUnit} (${cardCode})`;
     } else {
-      details = `${formatTimeString(new Date())} +${formatSmart(payUSDT)} ${currencyUnit} ${senderName}`;
+      details = `\`${formatTimeString(new Date())}\`     ${formatSmart(payUSDT)}  ${currencyUnit}`;
     }
     
     // Lưu giao dịch mới
