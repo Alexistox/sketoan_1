@@ -464,7 +464,7 @@ const getDepositHistory = async (chatId) => {
     });
     
     // Chỉ lấy 6 giao dịch gần đây nhất nếu có quá nhiều giao dịch
-    return { entries: entries.slice(-6), totalCount: entries.length };
+    return { entries: entries.slice(-5), totalCount: entries.length };
   } catch (error) {
     console.error('Error in getDepositHistory:', error);
     return { entries: [], totalCount: 0 };
