@@ -755,7 +755,7 @@ const handleAddInlineCommand = async (bot, msg) => {
     }
     
     // Tìm hoặc tạo Config cho inline buttons
-    let inlineConfig = await Config.findOne({ key: `INLINE_BUTTONS_${chatId}` });
+    let inlineConfig = await Config.findOne({ key: 'INLINE_BUTTONS_GLOBAL' });
     
     let buttons = [];
     if (inlineConfig) {
@@ -766,7 +766,7 @@ const handleAddInlineCommand = async (bot, msg) => {
       }
     } else {
       inlineConfig = new Config({
-        key: `INLINE_BUTTONS_${chatId}`,
+        key: 'INLINE_BUTTONS_GLOBAL',
         value: JSON.stringify([])
       });
     }
@@ -827,7 +827,7 @@ const handleRemoveInlineCommand = async (bot, msg) => {
     }
     
     // Tìm cấu hình inline buttons
-    const inlineConfig = await Config.findOne({ key: `INLINE_BUTTONS_${chatId}` });
+    const inlineConfig = await Config.findOne({ key: 'INLINE_BUTTONS_GLOBAL' });
     
     if (!inlineConfig) {
       bot.sendMessage(chatId, "还没有设置任何按钮。");
@@ -870,7 +870,7 @@ const handleRemoveInlineCommand = async (bot, msg) => {
 const displayInlineButtons = async (bot, chatId) => {
   try {
     // Tìm cấu hình inline buttons
-    const inlineConfig = await Config.findOne({ key: `INLINE_BUTTONS_${chatId}` });
+    const inlineConfig = await Config.findOne({ key: 'INLINE_BUTTONS_GLOBAL' });
     
     if (!inlineConfig) {
       bot.sendMessage(chatId, "还没有设置任何按钮。");
@@ -1041,7 +1041,7 @@ const getButtonsStatus = async (chatId) => {
  */
 const getInlineKeyboard = async (chatId) => {
   try {
-    const inlineConfig = await Config.findOne({ key: `INLINE_BUTTONS_${chatId}` });
+    const inlineConfig = await Config.findOne({ key: 'INLINE_BUTTONS_GLOBAL' });
     if (!inlineConfig) return null;
     
     let buttons = [];
@@ -1056,10 +1056,19 @@ const getInlineKeyboard = async (chatId) => {
     // Sắp xếp các buttons theo hàng ngang, mỗi hàng tối đa 3 buttons
     const keyboard = [];
     for (let i = 0; i < buttons.length; i += 3) {
-      const row = buttons.slice(i, i + 3).map(button => ({
-        text: button.text,
-        callback_data: button.command
-      }));
+      const row = buttons.slice(i, i + 3).map(button => {
+        // Kiểm tra nếu command là URL
+        if (button.command.startsWith('http://') || button.command.startsWith('https://')) {
+          return {
+            text: button.text,
+            url: button.command
+          };
+        }
+        return {
+          text: button.text,
+          callback_data: button.command
+        };
+      });
       keyboard.push(row);
     }
     
