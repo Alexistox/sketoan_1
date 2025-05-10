@@ -132,7 +132,7 @@ const formatTelegramMessage = (jsonData) => {
       const id = `!${entry.id || (entry.index + 1)}`;
       if (entry.messageId && entry.chatLink) {
         // Tạo link đến tin nhắn gốc với ID là phần clickable
-        output += `([${id}](${entry.chatLink})) ${entry.details}\n`;
+        output += `${entry.details} ([${id}](${entry.chatLink}))\n`;
       }
     });
     output += '\n';
@@ -146,7 +146,7 @@ const formatTelegramMessage = (jsonData) => {
   // Thêm ví dụ nếu có
   let rateInfoWithExample = rateInfo;
   if (jsonData.example) {
-    rateInfoWithExample += `\n例子: 100000 = ${jsonData.example} ${jsonData.currencyUnit || 'USDT'}`;
+    rateInfoWithExample += `\n例如: 100000 = ${jsonData.example} ${jsonData.currencyUnit || 'USDT'}`;
   }
   
   output += `${rateInfoWithExample}\n`;
