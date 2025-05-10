@@ -111,16 +111,10 @@ const formatTelegramMessage = (jsonData) => {
         // Tạo link đến tin nhắn gốc với ID là phần clickable
         output += `${entry.details} [${id}](${entry.chatLink})`;
         // Thêm tên người gửi ở cuối dòng
-        if (entry.senderName) {
-          output += ` \`${entry.senderName}\``;
-        }
         output += '\n';
       } else {
         output += `${entry.details} ${id}`;
-        // Thêm tên người gửi ở cuối dòng
-        if (entry.senderName) {
-          output += ` \`${entry.senderName}\``;
-        }
+        // Đã bỏ phần hiển thị senderName
         output += '\n';
       }
     });
@@ -143,16 +137,10 @@ const formatTelegramMessage = (jsonData) => {
         // Tạo link đến tin nhắn gốc với ID là phần clickable
         output += `${entry.details} [${id}](${entry.chatLink})`;
         // Thêm tên người gửi ở cuối dòng
-        if (entry.senderName) {
-          output += ` \`${entry.senderName}\``;
-        }
         output += '\n';
       } else {
         output += `${entry.details} ${id}`;
-        // Thêm tên người gửi ở cuối dòng
-        if (entry.senderName) {
-          output += ` \`${entry.senderName}\``;
-        }
+        // Đã bỏ phần hiển thị senderName
         output += '\n';
       }
     });
