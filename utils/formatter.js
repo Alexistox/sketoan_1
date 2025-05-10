@@ -82,7 +82,8 @@ const formatDateUS = (date) => {
 const formatTimeString = (date) => {
   const hours = date.getHours().toString().padStart(2, '0');
   const minutes = date.getMinutes().toString().padStart(2, '0');
-  return `${hours}:${minutes}`;
+  const seconds = date.getSeconds().toString().padStart(2, '0');
+  return `${hours}:${minutes}:${seconds}`;
 };
 
 /**
@@ -109,13 +110,7 @@ const formatTelegramMessage = (jsonData) => {
       const id = entry.id || (entry.index + 1);
       if (entry.messageId && entry.chatLink) {
         // Tạo link đến tin nhắn gốc với ID là phần clickable
-        output += `${entry.details} [${id}](${entry.chatLink})`;
-        // Thêm tên người gửi ở cuối dòng
-        output += '\n';
-      } else {
-        output += `${entry.details} ${id}`;
-        // Đã bỏ phần hiển thị senderName
-        output += '\n';
+        output += `${entry.details} [${id}](${entry.chatLink})\n`;
       }
     });
     output += '\n';
@@ -135,13 +130,7 @@ const formatTelegramMessage = (jsonData) => {
       const id = `!${entry.id || (entry.index + 1)}`;
       if (entry.messageId && entry.chatLink) {
         // Tạo link đến tin nhắn gốc với ID là phần clickable
-        output += `${entry.details} [${id}](${entry.chatLink})`;
-        // Thêm tên người gửi ở cuối dòng
-        output += '\n';
-      } else {
-        output += `${entry.details} ${id}`;
-        // Đã bỏ phần hiển thị senderName
-        output += '\n';
+        output += `${entry.details} [${id}](${entry.chatLink})\n`;
       }
     });
     output += '\n';
