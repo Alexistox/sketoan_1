@@ -75,15 +75,12 @@ const formatDateUS = (date) => {
 };
 
 /**
- * Định dạng thời gian theo định dạng 24h (giờ:phút)
+ * Định dạng thời gian theo định dạng 24h (HH:mm:ss) theo múi giờ Campuchia (Asia/Phnom_Penh)
  * @param {Date} date - Đối tượng ngày cần định dạng
- * @returns {String} - Chuỗi thời gian đã định dạng (ví dụ: 14:05)
+ * @returns {String} - Chuỗi thời gian đã định dạng (ví dụ: 14:05:00)
  */
 const formatTimeString = (date) => {
-  const hours = date.getHours().toString().padStart(2, '0');
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-  const seconds = date.getSeconds().toString().padStart(2, '0');
-  return `${hours}:${minutes}:${seconds}`;
+  return date.toLocaleTimeString('en-US', { timeZone: 'Asia/Phnom_Penh', hour12: false });
 };
 
 /**
