@@ -152,16 +152,16 @@ const handleMessage = async (bot, msg, cache) => {
     }
     
     // Lệnh 撤销账单 (tương đương /skip)
-    if (messageText.startsWith('撤销账单')) {
+    if (messageText.startsWith('撤回')) {
       // Kiểm tra quyền Operator
       if (await isUserOperator(userId, chatId)) {
         // Chuyển đổi tin nhắn để sử dụng lệnh /skip
         const modifiedMsg = { ...msg };
-        if (messageText === '撤销账单') {
-          bot.sendMessage(chatId, "指令无效。格式为：撤销账单 [ID] 例如: 撤销账单 3 或 撤销账单 !2");
+        if (messageText === '撤回') {
+          bot.sendMessage(chatId, "指令无效。格式为：撤回 [ID] 例如: 撤回 3 或 撤回 !2");
           return;
         } else {
-          modifiedMsg.text = '/skip' + messageText.substring(4);
+          modifiedMsg.text = '/skip' + messageText.substring(2);
         }
         await handleSkipCommand(bot, modifiedMsg);
       } else {

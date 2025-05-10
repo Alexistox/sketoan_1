@@ -336,7 +336,7 @@ const handleHelpCommand = async (bot, chatId) => {
 
 const handleStartCommand = async (bot, chatId) => {
   try {
-    const startMessage = `欢迎使用记账机器人！\n\n开始新账单/ 上课\n记账入账▫️+10000 或者 +数字 [卡号] [额度]\n代付减账▫️-10000\n撤销账单▫️撤销账单id\n下发▫️下发 100  或者 %数字 [卡号] [额度]\n设置费率▫️设置汇率1600  或者 | 价格 费率/汇率\n设置操作▫️@群成员  （群成员 必须在设置之前发送消息）\n删除操作▫️@群成员  （群成员 必须在设置之前发送消息）\n操作人 ▫️ 查看被授权人员名单\n\n+0▫️\n结束| /report`;
+    const startMessage = `欢迎使用记账机器人！\n\n开始新账单/ 上课\n记账入账▫️+10000 或者 +数字 [卡号] [额度]\n代付减账▫️-10000\n撤回▫️撤回id\n下发▫️下发 100  或者 %数字 [卡号] [额度]\n设置费率▫️设置汇率1600  或者 | 价格 费率/汇率\n设置操作▫️@群成员  （群成员 必须在设置之前发送消息）\n删除操作▫️@群成员  （群成员 必须在设置之前发送消息）\n操作人 ▫️ 查看被授权人员名单\n\n+0▫️\n结束| /report`;
     bot.sendMessage(chatId, startMessage);
   } catch (error) {
     console.error('Error in handleStartCommand:', error);
