@@ -117,7 +117,7 @@ const formatTelegramMessage = (jsonData) => {
     });
     output += '\n';
   } else {
-    output += "*已入账*: 暂无\n\n";
+    output += "*已入账*（0笔）：\n\n";
   }
   
   // Payments section
@@ -137,11 +137,11 @@ const formatTelegramMessage = (jsonData) => {
     });
     output += '\n';
   } else {
-    output += "*已下发*: 暂无\n\n";
+    output += "*已下发*（0笔）：\n\n";
   }
   output += `总入款💰: ${jsonData.totalAmount}\n`;
   // Rate information
-  const rateInfo = `费率 = ${jsonData.rate}\n汇率 = ${jsonData.exchangeRate}\n`;
+  const rateInfo = `费率： ${jsonData.rate}\n汇率： ${jsonData.exchangeRate}\n`;
  
   // Thêm ví dụ nếu có
   let rateInfoWithExample = rateInfo;
