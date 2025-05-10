@@ -19,17 +19,22 @@ const formatSmart = (num) => {
 /**
  * Định dạng giá trị tỷ lệ (rate)
  * @param {Number} num - Số cần định dạng
- * @returns {String} - Chuỗi đã định dạng với 2 chữ số thập phân
+ * @returns {String} - Chuỗi đã định dạng
  */
 const formatRateValue = (num) => {
   // Đảm bảo num là số
   num = parseFloat(num);
   if (isNaN(num)) {
-    return "0.00";
+    return "0";
   }
   
-  // Luôn hiển thị 2 chữ số thập phân
-  return num.toFixed(2);
+  // Nếu là số nguyên, trả về không có số thập phân
+  if (Number.isInteger(num)) {
+    return num.toString();
+  }
+  
+  // Nếu là số thập phân, loại bỏ các số 0 ở cuối
+  return num.toString().replace(/\.?0+$/, '');
 };
 
 /**
@@ -71,7 +76,7 @@ const formatDateUS = (date) => {
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const day = date.getDate().toString().padStart(2, '0');
   const year = date.getFullYear();
-  return `${month}/${day}/${year}`;
+  return `${year}/${month}/${day}/`;
 };
 
 /**
@@ -94,7 +99,7 @@ const formatTelegramMessage = (jsonData) => {
   // Date header - using US format (MM/DD/YYYY)
   const currentDate = new Date();
   const formattedDate = formatDateUS(currentDate);
-  output += `*今日${formattedDate}*\n`;
+  output += `*${formattedDate}:*\n`;
   
   // Deposits section
   if (jsonData.depositData && jsonData.depositData.entries && jsonData.depositData.entries.length > 0) {
@@ -141,15 +146,15 @@ const formatTelegramMessage = (jsonData) => {
   // Thêm ví dụ nếu có
   let rateInfoWithExample = rateInfo;
   if (jsonData.example) {
-    rateInfoWithExample += `\n例子: 100.000 = ${jsonData.example} ${jsonData.currencyUnit || 'USDT'}`;
+    rateInfoWithExample += `\n例子: 100000 = ${jsonData.example} ${jsonData.currencyUnit || 'USDT'}`;
   }
   
   output += `${rateInfoWithExample}\n`;
   
   // Summary section
-  output += `应下发 : ${jsonData.totalUSDT} ${jsonData.currencyUnit || 'USDT'}\n`;
-  output += `已下发 : ${jsonData.paidUSDT} ${jsonData.currencyUnit || 'USDT'}\n`;
-  output += `未下发 : ${jsonData.remainingUSDT} ${jsonData.currencyUnit || 'USDT'}`;
+  output += `应下发 : ${jsonData.totalUSDT}  ${jsonData.currencyUnit || 'USDT'}\n`;
+  output += `已下发 : ${jsonData.paidUSDT}  ${jsonData.currencyUnit || 'USDT'}\n`;
+  output += `未下发 : ${jsonData.remainingUSDT}  ${jsonData.currencyUnit || 'USDT'}`;
   
   // Cards section (if present)
   if (jsonData.cards && jsonData.cards.length > 0) {
