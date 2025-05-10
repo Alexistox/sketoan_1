@@ -84,10 +84,10 @@ const handleMessage = async (bot, msg, cache) => {
     await checkAndRegisterUser(userId, username, firstName, lastName);
     
     // Xử lý các lệnh tiếng Trung
-    if (messageText === '上课') {
+    if (messageText === '上课' || messageText === '开始新账单') {
       // Kiểm tra quyền Operator
       if (await isUserOperator(userId, chatId)) {
-        await handleClearCommand(bot, chatId, userId, firstName);
+        await handleClearCommand(bot, msg);
       } else {
         bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
       }
