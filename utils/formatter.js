@@ -150,9 +150,9 @@ const formatTelegramMessage = (jsonData) => {
   output += `${rateInfoWithExample}\n`;
   
   // Summary section
-  output += `应下发 ${jsonData.currencyUnit || 'USDT'}: ${jsonData.totalUSDT}\n`;
-  output += `已下发 ${jsonData.currencyUnit || 'USDT'}: ${jsonData.paidUSDT}\n`;
-  output += `未下发 ${jsonData.currencyUnit || 'USDT'}: ${jsonData.remainingUSDT}`;
+  output += `应下发 : ${jsonData.totalUSDT} ${jsonData.currencyUnit || 'USDT'}\n`;
+  output += `已下发 : ${jsonData.paidUSDT} ${jsonData.currencyUnit || 'USDT'}\n`;
+  output += `未下发 : ${jsonData.remainingUSDT} ${jsonData.currencyUnit || 'USDT'}`;
   
   // Cards section (if present)
   if (jsonData.cards && jsonData.cards.length > 0) {
