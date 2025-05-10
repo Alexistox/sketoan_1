@@ -76,7 +76,7 @@ const formatDateUS = (date) => {
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const day = date.getDate().toString().padStart(2, '0');
   const year = date.getFullYear();
-  return `${year}/${month}/${day}/`;
+  return `${year}/${month}/${day}`;
 };
 
 /**
@@ -112,7 +112,7 @@ const formatTelegramMessage = (jsonData) => {
       const id = entry.id || (entry.index + 1);
       if (entry.messageId && entry.chatLink) {
         // Tạo link đến tin nhắn gốc với ID là phần clickable
-        output += `([${id}](${entry.chatLink})) ${entry.details}\n`;
+        output += `${entry.details} (id[${id}](${entry.chatLink}))\n`;
       }
     });
     output += '\n';
