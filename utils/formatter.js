@@ -110,7 +110,7 @@ const formatTelegramMessage = (jsonData) => {
       const id = entry.id || (entry.index + 1);
       if (entry.messageId && entry.chatLink) {
         // Tạo link đến tin nhắn gốc với ID là phần clickable
-        output += `${entry.details} [${id}](${entry.chatLink})\n`;
+        output += `([${id}](${entry.chatLink})) ${entry.details}\n`;
       }
     });
     output += '\n';
@@ -130,7 +130,7 @@ const formatTelegramMessage = (jsonData) => {
       const id = `!${entry.id || (entry.index + 1)}`;
       if (entry.messageId && entry.chatLink) {
         // Tạo link đến tin nhắn gốc với ID là phần clickable
-        output += `${entry.details} [${id}](${entry.chatLink})\n`;
+        output += `([${id}](${entry.chatLink})) ${entry.details}\n`;
       }
     });
     output += '\n';
