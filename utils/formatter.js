@@ -96,12 +96,12 @@ const formatTelegramMessage = (jsonData) => {
   // Date header - using US format (MM/DD/YYYY)
   const currentDate = new Date();
   const formattedDate = formatDateUS(currentDate);
-  output += `🧧今日是 ${formattedDate} 🧧\n`;
+  output += `*今日${formattedDate}*\n`;
   
   // Deposits section
   if (jsonData.depositData && jsonData.depositData.entries && jsonData.depositData.entries.length > 0) {
     const depositCount = jsonData.depositData.totalCount || jsonData.depositData.entries.length;
-    output += `📥已入账 (${depositCount}笔):\n`;
+    output += `*已入账* (${depositCount}笔):\n`;
     
     // Format giao dịch với ID và link
     jsonData.depositData.entries.forEach((entry) => {
@@ -109,30 +109,30 @@ const formatTelegramMessage = (jsonData) => {
       const id = entry.id || (entry.index + 1);
       if (entry.messageId && entry.chatLink) {
         // Tạo link đến tin nhắn gốc với ID là phần clickable
-        output += `[${id}](${entry.chatLink}). ${entry.details}`;
+        output += `${entry.details} [${id}](${entry.chatLink})`;
         // Thêm tên người gửi ở cuối dòng
         if (entry.senderName) {
-          output += ` - ${entry.senderName}`;
+          output += ` \`${entry.senderName}\``;
         }
         output += '\n';
       } else {
-        output += `${id}. ${entry.details}`;
+        output += `${entry.details} ${id}`;
         // Thêm tên người gửi ở cuối dòng
         if (entry.senderName) {
-          output += ` - ${entry.senderName}`;
+          output += ` \`${entry.senderName}\``;
         }
         output += '\n';
       }
     });
     output += '\n';
   } else {
-    output += "📥已入账: 没有\n\n";
+    output += "*已入账*: 没有\n\n";
   }
   
   // Payments section
   if (jsonData.paymentData && jsonData.paymentData.entries && jsonData.paymentData.entries.length > 0) {
     const paymentCount = jsonData.paymentData.totalCount || jsonData.paymentData.entries.length;
-    output += `📤已下发 (${paymentCount}笔):\n`;
+    output += `*已下发* (${paymentCount}笔):\n`;
     
     // Format giao dịch với ID và link
     jsonData.paymentData.entries.forEach((entry) => {
@@ -141,28 +141,28 @@ const formatTelegramMessage = (jsonData) => {
       const id = `!${entry.id || (entry.index + 1)}`;
       if (entry.messageId && entry.chatLink) {
         // Tạo link đến tin nhắn gốc với ID là phần clickable
-        output += `[${id}](${entry.chatLink}). ${entry.details}`;
+        output += `${entry.details} [${id}](${entry.chatLink})`;
         // Thêm tên người gửi ở cuối dòng
         if (entry.senderName) {
-          output += ` - ${entry.senderName}`;
+          output += ` \`${entry.senderName}\``;
         }
         output += '\n';
       } else {
-        output += `${id}. ${entry.details}`;
+        output += `${entry.details} ${id}`;
         // Thêm tên người gửi ở cuối dòng
         if (entry.senderName) {
-          output += ` - ${entry.senderName}`;
+          output += ` \`${entry.senderName}\``;
         }
         output += '\n';
       }
     });
     output += '\n';
   } else {
-    output += "📤已下发: 没有\n\n";
+    output += "*已下发*: 没有\n\n";
   }
   output += `总入款💰: ${jsonData.totalAmount}\n`;
   // Rate information
-  const rateInfo = `费率=${jsonData.rate}|🔃汇率=${jsonData.exchangeRate}`;
+  const rateInfo = `费率=${jsonData.rate}\n汇率=${jsonData.exchangeRate}\n`;
  
   // Thêm ví dụ nếu có
   let rateInfoWithExample = rateInfo;
