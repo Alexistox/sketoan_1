@@ -117,9 +117,9 @@ const handlePlusCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `\`${formatTimeString(new Date())}\` +${formatSmart(amountVND)}*${rateFactor}/${yValue}=${formatSmart(newUSDT)} (${cardCode}) ${senderName}`;
+      details = `${formatTimeString(new Date())} +${formatSmart(amountVND)}"*"${rateFactor}"/"${yValue}"="${formatSmart(newUSDT)} (${cardCode}) ${senderName}`;
     } else {
-      details = `\`${formatTimeString(new Date())}\` +${formatSmart(amountVND)}*${rateFactor}/${yValue}=${formatSmart(newUSDT)} ${senderName}`;
+      details = `${formatTimeString(new Date())} +${formatSmart(amountVND)}"*"${rateFactor}"/"${yValue}"="${formatSmart(newUSDT)} ${senderName}`;
     }
     
     // Lưu giao dịch mới
@@ -286,9 +286,9 @@ const handleMinusCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `\`${formatTimeString(new Date())}\` -${formatSmart(amountVND)}*${rateFactor}/${yValue}=-${formatSmart(newUSDT)} (${cardCode}) ${senderName}`;
+      details = `${formatTimeString(new Date())} -${formatSmart(amountVND)}"*"${rateFactor}"/"${yValue}"=-${formatSmart(newUSDT)} (${cardCode}) ${senderName}`;
     } else {
-      details = `\`${formatTimeString(new Date())}\` -${formatSmart(amountVND)}*${rateFactor}/${yValue}=-${formatSmart(newUSDT)} ${senderName}`;
+      details = `${formatTimeString(new Date())} -${formatSmart(amountVND)}"*"${rateFactor}"/"${yValue}"=-${formatSmart(newUSDT)} ${senderName}`;
     }
     // Lưu giao dịch mới
     const transaction = new Transaction({
@@ -459,9 +459,9 @@ const handlePercentCommand = async (bot, msg) => {
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `\`${formatTimeString(new Date())}\` +${formatSmart(payUSDT)} ${currencyUnit} (${cardCode}) \`${senderName}\``;
+      details = `${formatTimeString(new Date())} +${formatSmart(payUSDT)} ${currencyUnit} (${cardCode}) ${senderName}`;
     } else {
-      details = `\`${formatTimeString(new Date())}\` +${formatSmart(payUSDT)} ${currencyUnit} \`${senderName}\``;
+      details = `${formatTimeString(new Date())} +${formatSmart(payUSDT)} ${currencyUnit} ${senderName}`;
     }
     
     // Lưu giao dịch mới
