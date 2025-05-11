@@ -37,7 +37,8 @@ const handleClearCommand = async (bot, msg) => {
     }
     
     await group.save();
-    
+    // Xóa tất cả thông tin thẻ
+    await Card.deleteMany({ chatId: msg.chat.id.toString() });
     // Lưu transaction mới
     const transaction = new Transaction({
       chatId: msg.chat.id.toString(),
