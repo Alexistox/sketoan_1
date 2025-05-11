@@ -27,6 +27,11 @@ const {
   handleStartCommand
 } = require('./utilCommands');
 
+const {
+  handleImageBankInfo,
+  handleReplyImageBankInfo
+} = require('./imageCommands');
+
 // Hàm xử lý tin nhắn chính
 const handleMessage = async (bot, msg, cache) => {
   try {
@@ -602,7 +607,9 @@ const {
   handleAddInlineCommand,
   handleRemoveInlineCommand,
   displayInlineButtons,
-  handleGetUsdtAddressCommand
+  handleGetUsdtAddressCommand,
+  handleEnableButtonsCommand,
+  handleDisableButtonsCommand
 } = require('./userCommands');
 
 module.exports = {

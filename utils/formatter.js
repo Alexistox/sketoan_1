@@ -117,7 +117,7 @@ const formatTelegramMessage = (jsonData) => {
     });
     output += '\n';
   } else {
-    output += "*已入账*（0笔）：\n\n";
+    output += "*已入账*(0笔):\n\n";
   }
   
   // Payments section
@@ -137,7 +137,7 @@ const formatTelegramMessage = (jsonData) => {
     });
     output += '\n';
   } else {
-    output += "*已下发*（0笔）：\n\n";
+    output += "*已下发*(0笔):\n\n";
   }
   output += `总入款💰: ${jsonData.totalAmount}\n`;
   // Rate information
