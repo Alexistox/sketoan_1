@@ -5,6 +5,22 @@ const { isTrc20Address } = require('../utils/formatter');
 const { migrateUserGroupsToOperators } = require('../utils/dataConverter');
 const { isUserOwner, isUserAdmin, isUserOperator, extractUserFromCommand } = require('../utils/permissions');
 const Transaction = require('../models/Transaction');
+const fs = require('fs');
+const path = require('path');
+const BUTTONS2_PATH = path.join(__dirname, '../config/inline_buttons2.json');
+
+function readButtons2() {
+  if (!fs.existsSync(BUTTONS2_PATH)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(BUTTONS2_PATH, 'utf8'));
+  } catch {
+    return [];
+  }
+}
+
+function writeButtons2(buttons) {
+  fs.writeFileSync(BUTTONS2_PATH, JSON.stringify(buttons, null, 2), 'utf8');
+}
 
 /**
  * Xử lý lệnh thêm admin (/ad) - Chỉ Owner
@@ -1081,6 +1097,143 @@ const getInlineKeyboard = async (chatId) => {
   }
 };
 
+// Thêm button vào bộ 2
+const handleAddInline2Command = async (bot, msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  if (!(await isUserOperator(userId, chatId))) {
+    bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
+    return;
+  }
+  const args = msg.text.split(' ');
+  if (args.length < 3) {
+    bot.sendMessage(chatId, 'Cú pháp: /inline2 [Tên nút] [Link]');
+    return;
+  }
+  const text = args[1];
+  const command = args.slice(2).join(' ');
+  let buttons = readButtons2();
+  if (buttons.find(b => b.text === text)) {
+    bot.sendMessage(chatId, 'Tên nút đã tồn tại!');
+    return;
+  }
+  buttons.push({ text, command });
+  writeButtons2(buttons);
+  bot.sendMessage(chatId, `Đã thêm button: ${text}`);
+};
+
+// Xóa button khỏi bộ 2
+const handleRemoveInline2Command = async (bot, msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  if (!(await isUserOperator(userId, chatId))) {
+    bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
+    return;
+  }
+  const args = msg.text.split(' ');
+  if (args.length < 2) {
+    bot.sendMessage(chatId, 'Cú pháp: /removeinline2 [Tên nút]');
+    return;
+  }
+  const text = args[1];
+  let buttons = readButtons2();
+  const newButtons = buttons.filter(b => b.text !== text);
+  if (newButtons.length === buttons.length) {
+    bot.sendMessage(chatId, 'Không tìm thấy button này!');
+    return;
+  }
+  writeButtons2(newButtons);
+  bot.sendMessage(chatId, `Đã xóa button: ${text}`);
+};
+
+// Hiển thị danh sách button bộ 2
+const handleButtons2Command = async (bot, msg) => {
+  const chatId = msg.chat.id;
+  const buttons = readButtons2();
+  if (!buttons.length) {
+    bot.sendMessage(chatId, 'Chưa có button nào!');
+    return;
+  }
+  // Sắp xếp hàng ngang, mỗi hàng 3 nút
+  const keyboard = [];
+  for (let i = 0; i < buttons.length; i += 3) {
+    const row = buttons.slice(i, i + 3).map(b => {
+      if (b.command.startsWith('http://') || b.command.startsWith('https://')) {
+        return { text: b.text, url: b.command };
+      }
+      return { text: b.text, callback_data: b.command };
+    });
+    keyboard.push(row);
+  }
+  bot.sendMessage(chatId, 'Danh sách button:', {
+    reply_markup: { inline_keyboard: keyboard }
+  });
+};
+
+const handleChatWithButtons2Command = async (bot, msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  if (!(await isUserOperator(userId, chatId))) {
+    bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
+    return;
+  }
+  const buttons = readButtons2();
+  // Sắp xếp hàng ngang, mỗi hàng 3 nút
+  const keyboard = [];
+  for (let i = 0; i < buttons.length; i += 3) {
+    const row = buttons.slice(i, i + 3).map(b => {
+      if (b.command.startsWith('http://') || b.command.startsWith('https://')) {
+        return { text: b.text, url: b.command };
+      }
+      return { text: b.text, callback_data: b.command };
+    });
+    keyboard.push(row);
+  }
+  const reply_markup = { inline_keyboard: keyboard };
+
+  // Nếu là reply vào tin nhắn có media
+  if (msg.reply_to_message) {
+    const r = msg.reply_to_message;
+    if (r.photo) {
+      // Ảnh
+      const fileId = r.photo[r.photo.length - 1].file_id;
+      await bot.sendPhoto(chatId, fileId, { caption: r.caption || '', reply_markup });
+      return;
+    }
+    if (r.video) {
+      await bot.sendVideo(chatId, r.video.file_id, { caption: r.caption || '', reply_markup });
+      return;
+    }
+    if (r.document) {
+      await bot.sendDocument(chatId, r.document.file_id, { caption: r.caption || '', reply_markup });
+      return;
+    }
+    if (r.animation) {
+      await bot.sendAnimation(chatId, r.animation.file_id, { caption: r.caption || '', reply_markup });
+      return;
+    }
+    if (r.text) {
+      await bot.sendMessage(chatId, r.text, { reply_markup });
+      return;
+    }
+    // Nếu không có gì phù hợp
+    bot.sendMessage(chatId, 'Không hỗ trợ loại tin nhắn này!');
+    return;
+  }
+  // Nếu không phải reply, lấy nội dung sau /chat
+  const args = msg.text.split(' ');
+  if (args.length < 2) {
+    bot.sendMessage(chatId, 'Cú pháp: /chat [nội dung hoặc reply vào tin nhắn]');
+    return;
+  }
+  const content = msg.text.substring(6).trim();
+  if (!content) {
+    bot.sendMessage(chatId, 'Cú pháp: /chat [nội dung hoặc reply vào tin nhắn]');
+    return;
+  }
+  await bot.sendMessage(chatId, content, { reply_markup });
+};
+
 module.exports = {
   handleListUsersCommand,
   handleCurrencyUnitCommand,
@@ -1102,5 +1255,9 @@ module.exports = {
   handleEnableButtonsCommand,
   handleDisableButtonsCommand,
   getButtonsStatus,
-  getInlineKeyboard
+  getInlineKeyboard,
+  handleAddInline2Command,
+  handleRemoveInline2Command,
+  handleButtons2Command,
+  handleChatWithButtons2Command
 }; 

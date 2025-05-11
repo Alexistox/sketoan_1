@@ -68,14 +68,14 @@ const handleMessage = async (bot, msg, cache) => {
     
     // Xử lý các lệnh liên quan đến ảnh
     if (msg.photo) {
-      if (msg.caption && msg.caption.startsWith('/c')) {
+      if (msg.caption && msg.caption === ('/c')) {
         await handleImageBankInfo(bot, msg);
         return;
       }
     }
     
     // Xử lý khi người dùng reply một tin nhắn có ảnh
-    if (msg.reply_to_message && msg.reply_to_message.photo && msg.text && msg.text.startsWith('/c')) {
+    if (msg.reply_to_message && msg.reply_to_message.photo && msg.text && msg.text === ('/c')) {
       await handleReplyImageBankInfo(bot, msg);
       return;
     }
@@ -89,7 +89,7 @@ const handleMessage = async (bot, msg, cache) => {
     await checkAndRegisterUser(userId, username, firstName, lastName);
     
     // Xử lý các lệnh tiếng Trung
-    if (messageText === '上课' || messageText === '开始新账单') {
+    if (messageText === '上课' || messageText === 'Start' || messageText === '开始新账单') {
       // Kiểm tra quyền Operator
       if (await isUserOperator(userId, chatId)) {
         await handleClearCommand(bot, msg);
@@ -454,9 +454,29 @@ const handleMessage = async (bot, msg, cache) => {
         await handleStartCommand(bot, chatId);
         return;
       }
+
+      // Xử lý lệnh /chat
+      if (messageText.startsWith('/chat')) {
+        await handleChatWithButtons2Command(bot, msg);
+        return;
+      }
     }
     
-   
+    // Xử lý lệnh /inline2
+    if (messageText.startsWith('/inline2 ')) {
+      await handleAddInline2Command(bot, msg);
+      return;
+    }
+    // Xử lý lệnh /removeinline2
+    if (messageText.startsWith('/removeinline2 ')) {
+      await handleRemoveInline2Command(bot, msg);
+      return;
+    }
+    // Xử lý lệnh /buttons2
+    if (messageText === '/buttons2') {
+      await handleButtons2Command(bot, msg);
+      return;
+    }
     
     // Xử lý tin nhắn + và -
     if (messageText.startsWith('+')) {
@@ -609,7 +629,11 @@ const {
   displayInlineButtons,
   handleGetUsdtAddressCommand,
   handleEnableButtonsCommand,
-  handleDisableButtonsCommand
+  handleDisableButtonsCommand,
+  handleAddInline2Command,
+  handleRemoveInline2Command,
+  handleButtons2Command,
+  handleChatWithButtons2Command
 } = require('./userCommands');
 
 module.exports = {
