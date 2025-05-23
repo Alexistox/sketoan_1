@@ -18,7 +18,7 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // Create Express app
 const app = express();
-const port = process.env.PORT || 3002;
+const port = process.env.PORT || 3000;
 
 // Create bot instance
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
