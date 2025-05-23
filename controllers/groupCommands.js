@@ -51,6 +51,9 @@ const handleClearCommand = async (bot, msg) => {
     
     await transaction.save();
     
+    // Xóa toàn bộ thẻ thuộc nhóm hiện tại
+    await Card.deleteMany({ chatId: msg.chat.id.toString() });
+    
     // Tính toán giá trị ví dụ
     let exampleValue = 0;
     if (currentExRate > 0) {
