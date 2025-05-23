@@ -59,7 +59,7 @@ const handlePlusCommand = async (bot, msg) => {
       return;
     }
     // Lấy đơn vị tiền tệ
-    const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
+    const configCurrency = await Config.findOne({ key: `CURRENCY_UNIT_${chatId}` });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
 
     // Bỏ qua giao dịch +0
@@ -283,7 +283,7 @@ const handleMinusCommand = async (bot, msg) => {
     await group.save();
     
     // Lấy đơn vị tiền tệ
-    const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
+    const configCurrency = await Config.findOne({ key: `CURRENCY_UNIT_${chatId}` });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Tạo chi tiết giao dịch
@@ -451,7 +451,7 @@ const handlePercentCommand = async (bot, msg) => {
     }
     
     // Lấy đơn vị tiền tệ
-    const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
+    const configCurrency = await Config.findOne({ key: `CURRENCY_UNIT_${chatId}` });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Cập nhật group
@@ -689,7 +689,7 @@ const handleSkipCommand = async (bot, msg) => {
     const cardSummary = await getCardSummary(chatId);
     
     // Tạo response JSON
-    const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
+    const configCurrency = await Config.findOne({ key: `CURRENCY_UNIT_${chatId}` });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     const responseData = {

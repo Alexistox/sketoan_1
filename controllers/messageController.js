@@ -207,6 +207,84 @@ const handleMessage = async (bot, msg, cache) => {
       return;
     }
     
+    // --- Xử lý alias tiếng Trung trước khi kiểm tra lệnh bắt đầu bằng "/" ---
+    if (messageText === '操作人') {
+      const modifiedMsg = { ...msg, text: '/ops' };
+      await handleListOperatorsCommand(bot, modifiedMsg);
+      return;
+    }
+    if (messageText.startsWith('添加管理员')) {
+      const modifiedMsg = { ...msg };
+      const prefixLength = messageText.startsWith('添加管理员') ? 5 : 6;
+      modifiedMsg.text = '/ad ' + messageText.substring(prefixLength).trim();
+      await handleAddAdminCommand(bot, modifiedMsg);
+      return;
+    }
+    if (messageText.startsWith('删除管理员')) {
+      const modifiedMsg = { ...msg };
+      const prefixLength = messageText.startsWith('删除管理员') ? 5 : 6;
+      modifiedMsg.text = '/removead ' + messageText.substring(prefixLength).trim();
+      await handleRemoveAdminCommand(bot, modifiedMsg);
+      return;
+    }
+    if (messageText.startsWith('设置地址')) {
+      if (await isUserAdmin(userId)) {
+        const modifiedMsg = { ...msg };
+        const prefixLength = 4;
+        modifiedMsg.text = '/usdt ' + messageText.substring(prefixLength).trim();
+        await handleSetUsdtAddressCommand(bot, modifiedMsg);
+      } else {
+        bot.sendMessage(chatId, "⛔ 只有机器人所有者和管理员才能使用此命令！");
+      }
+      return;
+    }
+    if (messageText.startsWith('确认人')) {
+      if (await isUserAdmin(userId)) {
+        const modifiedMsg = { ...msg };
+        const prefixLength = 3;
+        modifiedMsg.text = '/usdtxn ' + messageText.substring(prefixLength).trim();
+        await handleUsdtConfirmCommand(bot, modifiedMsg);
+      } else {
+        bot.sendMessage(chatId, "⛔ 只有机器人所有者和管理员才能使用此命令！");
+      }
+      return;
+    }
+    if (messageText.startsWith('删除确认人')) {
+      if (await isUserAdmin(userId)) {
+        const modifiedMsg = { ...msg };
+        const prefixLength = 5;
+        modifiedMsg.text = '/usdtxxn ' + messageText.substring(prefixLength).trim();
+        await handleUsdtRemoveConfirmCommand(bot, modifiedMsg);
+      } else {
+        bot.sendMessage(chatId, "⛔ 只有机器人所有者和管理员才能使用此命令！");
+      }
+      return;
+    }
+    if (messageText.startsWith('移除确认人')) {
+      if (await isUserAdmin(userId)) {
+        const modifiedMsg = { ...msg };
+        const prefixLength = 5;
+        modifiedMsg.text = '/usdtxxn ' + messageText.substring(prefixLength).trim();
+        await handleUsdtRemoveConfirmCommand(bot, modifiedMsg);
+      } else {
+        bot.sendMessage(chatId, "⛔ 只有机器人所有者和管理员才能使用此命令！");
+      }
+      return;
+    }
+    if (messageText === 'u来u来') {
+      await handleGetUsdtAddressCommand(bot, msg);
+      return;
+    }
+    if (messageText.startsWith('删除usdt')) {
+      if (await isUserAdmin(userId)) {
+        await handleRemoveUsdtCommand(bot, msg);
+      } else {
+        bot.sendMessage(chatId, "⛔ 只有机器人所有者和管理员才能使用此命令！");
+      }
+      return;
+    }
+    // --- Kết thúc alias tiếng Trung ---
+    
     // Xử lý các lệnh bắt đầu bằng "/"
     if (messageText.startsWith('/')) {
       if (messageText === '/start') {
@@ -460,8 +538,37 @@ const handleMessage = async (bot, msg, cache) => {
         await handleChatWithButtons2Command(bot, msg);
         return;
       }
+
+      // Lệnh xác nhận địa chỉ USDT - chỉ admin và owner
+      if (messageText.startsWith('/usdtxn')) {
+        if (await isUserAdmin(userId)) {
+          await handleUsdtConfirmCommand(bot, msg);
+        } else {
+          bot.sendMessage(chatId, "⛔ 只有机器人所有者和管理员才能使用此命令！");
+        }
+        return;
+      }
+
+      // Lệnh xóa xác nhận địa chỉ USDT - chỉ admin và owner
+      if (messageText.startsWith('/usdtxxn')) {
+        if (await isUserAdmin(userId)) {
+          await handleUsdtRemoveConfirmCommand(bot, msg);
+        } else {
+          bot.sendMessage(chatId, "⛔ 只有机器人所有者和管理员才能使用此命令！");
+        }
+        return;
+      }
+
+      if (messageText.startsWith('/rmusdt')) {
+        if (await isUserAdmin(userId)) {
+          await handleRemoveUsdtCommand(bot, msg);
+        } else {
+          bot.sendMessage(chatId, "⛔ 只有机器人所有者和管理员才能使用此命令！");
+        }
+        return;
+      }
+
     }
-    
     // Xử lý lệnh /inline2
     if (messageText.startsWith('/inline2 ')) {
       await handleAddInline2Command(bot, msg);
@@ -514,32 +621,19 @@ const handleMessage = async (bot, msg, cache) => {
       return;
     }
     
-    // Alias cho lệnh admin/operator tiếng Trung
-    if (messageText.startsWith('添加管理员')) {
-      // Chuyển thành /ad
-      const modifiedMsg = { ...msg };
-      const prefixLength = messageText.startsWith('添加管理员') ? 5 : 6;
-      
-      // Đảm bảo luôn có một dấu cách sau /ad
-      modifiedMsg.text = '/ad ' + messageText.substring(prefixLength).trim();
-      await handleAddAdminCommand(bot, modifiedMsg);
+    // Thêm xử lý media + caption cho lệnh /usdt
+    if ((msg.photo || msg.video || msg.animation || msg.sticker) && msg.caption && msg.caption.match(/^T.{33}$/)) {
+      // Nếu caption là địa chỉ USDT hợp lệ
+      await handleSetUsdtAddressCommand(bot, msg);
       return;
     }
-    if (messageText.startsWith('删除管理员')) {
-      // Chuyển thành /removead
-      const modifiedMsg = { ...msg };
-      const prefixLength = messageText.startsWith('删除管理员') ? 5 : 6;
-      // Đảm bảo luôn có một dấu cách sau /removead
-      modifiedMsg.text = '/removead ' + messageText.substring(prefixLength).trim();
-      await handleRemoveAdminCommand(bot, modifiedMsg);
+    // Nếu là reply vào media và text là /usdt <address>
+    if (msg.reply_to_message && (msg.reply_to_message.photo || msg.reply_to_message.video || msg.reply_to_message.animation || msg.reply_to_message.sticker) && msg.text && msg.text.startsWith('/usdt ')) {
+      await handleSetUsdtAddressCommand(bot, msg);
       return;
     }
-    if (messageText === '操作人') {
-      // Chuyển thành /ops
-      const modifiedMsg = { ...msg, text: '/ops' };
-      await handleListOperatorsCommand(bot, modifiedMsg);
-      return;
-    }
+
+  
   } catch (error) {
     console.error('Error in handleMessage:', error);
   }
@@ -633,7 +727,10 @@ const {
   handleAddInline2Command,
   handleRemoveInline2Command,
   handleButtons2Command,
-  handleChatWithButtons2Command
+  handleChatWithButtons2Command,
+  handleUsdtConfirmCommand,
+  handleUsdtRemoveConfirmCommand,
+  handleRemoveUsdtCommand
 } = require('./userCommands');
 
 module.exports = {

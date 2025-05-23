@@ -41,7 +41,7 @@ const handleCalculateUsdtCommand = async (bot, msg) => {
     const usdtValue = (amount / yValue) * (1 - xValue / 100);
     
     // Lấy đơn vị tiền tệ
-    const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
+    const configCurrency = await Config.findOne({ key: `CURRENCY_UNIT_${chatId}` });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Gửi kết quả
@@ -91,7 +91,7 @@ const handleCalculateVndCommand = async (bot, msg) => {
     const vndValue = (amount / (1 - xValue / 100)) * yValue;
     
     // Lấy đơn vị tiền tệ
-    const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
+    const configCurrency = await Config.findOne({ key: `CURRENCY_UNIT_${chatId}` });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Gửi kết quả
@@ -165,7 +165,7 @@ const handleReportCommand = async (bot, chatId, senderName) => {
     }
     
     // Lấy đơn vị tiền tệ
-    const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
+    const configCurrency = await Config.findOne({ key: `CURRENCY_UNIT_${chatId}` });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy thông tin tất cả các giao dịch trong ngày
@@ -270,16 +270,16 @@ const handleHelpCommand = async (bot, chatId) => {
 /start - 启动机器人
 /help - 查看帮助
 /off - 结束会话
-/u - 查看当前USDT地址
+/u - 查看当前USDT地址 或者 u来u来
 /report - 查看交易报告
-/users - 用户列表
-/ops - 操作员列表
+/ops - 操作员列表 或者 操作人
 
 -------------------------
 *汇率与费率:*
 /t [金额] - VND转USDT (例: /t 1000000)
 /v [金额] - USDT转VND (例: /v 100)
 /d [费率]/[汇率] - 临时设置费率和汇率 (例: /d 2/14600)
+或者 价格 费率/汇率
 设置费率 [数值] - 设置费率 (例: 设置费率2)
 设置汇率 [数值] - 设置汇率 (例: 设置汇率14600)
 
@@ -291,6 +291,7 @@ const handleHelpCommand = async (bot, chatId) => {
 上课 - 清空今日交易
 /delete [ID] - 删除交易记录
 /skip [ID] - 跳过某条交易
+
 
 -------------------------
 *银行卡管理:*
@@ -306,17 +307,18 @@ const handleHelpCommand = async (bot, chatId) => {
 
 -------------------------
 *管理员命令:*
-/usdt [地址] - 设置USDT地址
-/op @用户名 - 添加操作员
-/removeop @用户名 - 移除操作员
-/listgroups - 查看所有群组
+/usdt 或者 设置地址 [地址] - 设置USDT地址
+确认人 @用户名 - 设置确认人
+删除确认人 @用户名 - 删除确认人
+/op 或者 操作人  @用户名 - 添加操作员
+/removeop 或者 删除操作人 @用户名 - 删除操作员
 
 -------------------------
 *所有者命令:*
 /ad @用户名 - 添加管理员
+添加管理员
 /removead @用户名 - 移除管理员
-/admins - 管理员列表
-/setowner @用户名 - 转让所有者
+删除管理员
 /remove @用户名 - 移除用户
 /migrate - 数据迁移
 
@@ -338,7 +340,7 @@ const handleHelpCommand = async (bot, chatId) => {
 
 const handleStartCommand = async (bot, chatId) => {
   try {
-    const startMessage = `欢迎使用记账机器人！\n\n开始新账单/ 上课\n记账入账▫️+10000 或者 +数字 [卡号] [额度]\n代付减账▫️-10000\n撤回▫️撤回id\n下发▫️下发 100  或者 %数字 [卡号] [额度]\n设置费率▫️设置汇率1600  或者 | 价格 费率/汇率\n设置操作▫️@群成员  （群成员 必须在设置之前发送消息）\n删除操作▫️@群成员  （群成员 必须在设置之前发送消息）\n操作人 ▫️ 查看被授权人员名单\n\n+0▫️\n结束| /report`;
+    const startMessage = `欢迎使用记账机器人！\n\n开始新账单/ 上课\n记账入账▫️+10000 或者 +数字 [卡号] [额度]\n代付减账▫️-10000\n撤回▫️撤回id\n下发▫️下发 100  或者 %数字 [卡号] [额度]\n设置费率▫️设置汇率1600  或者 \n价格 费率/汇率\n设置操作▫️@群成员  （群成员 必须在设置之前发送消息）\n删除操作▫️@群成员 \n操作人 ▫️ 查看被授权人员名单\n\n+0▫️\n结束| /report`;
     bot.sendMessage(chatId, startMessage);
   } catch (error) {
     console.error('Error in handleStartCommand:', error);

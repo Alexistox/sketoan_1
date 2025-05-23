@@ -8,6 +8,7 @@ const Transaction = require('../models/Transaction');
 const fs = require('fs');
 const path = require('path');
 const BUTTONS2_PATH = path.join(__dirname, '../config/inline_buttons2.json');
+const UsdtMedia = require('../models/UsdtMedia');
 
 function readButtons2() {
   if (!fs.existsSync(BUTTONS2_PATH)) return [];
@@ -490,12 +491,12 @@ const handleCurrencyUnitCommand = async (bot, msg) => {
       return;
     }
     
-    // Tìm config đã tồn tại hoặc tạo mới
-    let config = await Config.findOne({ key: 'CURRENCY_UNIT' });
+    // Lưu riêng cho từng nhóm
+    let config = await Config.findOne({ key: `CURRENCY_UNIT_${chatId}` });
     
     if (!config) {
       config = new Config({
-        key: 'CURRENCY_UNIT',
+        key: `CURRENCY_UNIT_${chatId}`,
         value: currencyUnit
       });
     } else {
@@ -503,7 +504,7 @@ const handleCurrencyUnitCommand = async (bot, msg) => {
     }
     
     await config.save();
-    bot.sendMessage(chatId, `✅ 已设置币种为 ${currencyUnit}`);
+    bot.sendMessage(chatId, `✅ 已设置本群币种为 ${currencyUnit}`);
   } catch (error) {
     console.error('Error in handleCurrencyUnitCommand:', error);
     bot.sendMessage(msg.chat.id, "处理设置币种命令时出错。请稍后再试。");
@@ -516,36 +517,125 @@ const handleCurrencyUnitCommand = async (bot, msg) => {
 const handleSetUsdtAddressCommand = async (bot, msg) => {
   try {
     const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    let address = null;
+    let mediaType = null;
+    let fileId = null;
+    let fileUniqueId = null;
+
+    // Ưu tiên media + caption
+    if ((msg.photo || msg.video || msg.animation || msg.sticker) && msg.caption) {
+      address = msg.caption.trim();
+      if (!isTrc20Address(address)) {
+        bot.sendMessage(chatId, "❌ TRC20地址无效！地址必须以字母T开头并且有34个字符。");
+        return;
+      }
+      if (msg.photo) {
+        mediaType = 'photo';
+        const lastPhoto = msg.photo[msg.photo.length - 1];
+        fileId = lastPhoto.file_id;
+        fileUniqueId = lastPhoto.file_unique_id;
+      } else if (msg.video) {
+        mediaType = 'video';
+        fileId = msg.video.file_id;
+        fileUniqueId = msg.video.file_unique_id;
+      } else if (msg.animation) {
+        mediaType = 'animation';
+        fileId = msg.animation.file_id;
+        fileUniqueId = msg.animation.file_unique_id;
+      } else if (msg.sticker) {
+        mediaType = 'sticker';
+        fileId = msg.sticker.file_id;
+        fileUniqueId = msg.sticker.file_unique_id;
+      }
+      // Lưu vào UsdtMedia
+      await UsdtMedia.create({
+        address,
+        mediaType,
+        fileId,
+        fileUniqueId,
+        ownerId: userId
+      });
+      // Lưu vào Config (giữ logic cũ)
+      let config = await Config.findOne({ key: 'USDT_ADDRESS' });
+      if (!config) {
+        config = new Config({ key: 'USDT_ADDRESS', value: address });
+      } else {
+        config.value = address;
+      }
+      await config.save();
+      bot.sendMessage(chatId, `✅ 保存成功 (${mediaType})!`);
+      return;
+    }
+
+    // Nếu là reply vào tin nhắn có media và text là /usdt <address>
+    if (msg.reply_to_message && (msg.reply_to_message.photo || msg.reply_to_message.video || msg.reply_to_message.animation || msg.reply_to_message.sticker)) {
+      const parts = msg.text.split('/usdt ');
+      if (parts.length === 2) {
+        address = parts[1].trim();
+        if (!isTrc20Address(address)) {
+          bot.sendMessage(chatId, "❌ TRC20地址无效！地址必须以字母T开头并且有34个字符。");
+          return;
+        }
+        if (msg.reply_to_message.photo) {
+          mediaType = 'photo';
+          const lastPhoto = msg.reply_to_message.photo[msg.reply_to_message.photo.length - 1];
+          fileId = lastPhoto.file_id;
+          fileUniqueId = lastPhoto.file_unique_id;
+        } else if (msg.reply_to_message.video) {
+          mediaType = 'video';
+          fileId = msg.reply_to_message.video.file_id;
+          fileUniqueId = msg.reply_to_message.video.file_unique_id;
+        } else if (msg.reply_to_message.animation) {
+          mediaType = 'animation';
+          fileId = msg.reply_to_message.animation.file_id;
+          fileUniqueId = msg.reply_to_message.animation.file_unique_id;
+        } else if (msg.reply_to_message.sticker) {
+          mediaType = 'sticker';
+          fileId = msg.reply_to_message.sticker.file_id;
+          fileUniqueId = msg.reply_to_message.sticker.file_unique_id;
+        }
+        await UsdtMedia.create({
+          address,
+          mediaType,
+          fileId,
+          fileUniqueId,
+          ownerId: userId
+        });
+        // Lưu vào Config (giữ logic cũ)
+        let config = await Config.findOne({ key: 'USDT_ADDRESS' });
+        if (!config) {
+          config = new Config({ key: 'USDT_ADDRESS', value: address });
+        } else {
+          config.value = address;
+        }
+        await config.save();
+        bot.sendMessage(chatId, `✅ 保存成功 (${mediaType})!`);
+        return;
+      }
+    }
+
+    // Nếu chỉ có text như cũ
     const messageText = msg.text;
-    
-    // Phân tích tin nhắn
     const parts = messageText.split('/usdt ');
     if (parts.length !== 2) {
       bot.sendMessage(chatId, "ℹ️ 语法: /usdt <TRC20地址>");
       return;
     }
-    
-    const address = parts[1].trim();
+    address = parts[1].trim();
     if (!isTrc20Address(address)) {
       bot.sendMessage(chatId, "❌ TRC20地址无效！地址必须以字母T开头并且有34个字符。");
       return;
     }
-    
-    // Tìm config đã tồn tại hoặc tạo mới
+    // Lưu vào Config (giữ logic cũ)
     let config = await Config.findOne({ key: 'USDT_ADDRESS' });
     const oldAddress = config ? config.value : null;
-    
     if (!config) {
-      config = new Config({
-        key: 'USDT_ADDRESS',
-        value: address
-      });
+      config = new Config({ key: 'USDT_ADDRESS', value: address });
     } else {
       config.value = address;
     }
-    
     await config.save();
-    
     if (oldAddress) {
       bot.sendMessage(chatId, "🔄 已更新USDT-TRC20地址:\n`" + address + "`");
     } else {
@@ -563,20 +653,50 @@ const handleSetUsdtAddressCommand = async (bot, msg) => {
 const handleGetUsdtAddressCommand = async (bot, msg) => {
   try {
     const chatId = msg.chat.id;
-    
     // Tìm địa chỉ USDT
     const config = await Config.findOne({ key: 'USDT_ADDRESS' });
-    
     if (!config || !config.value) {
       bot.sendMessage(chatId, "⚠️ 尚未设置USDT-TRC20地址。请使用 /usdt 命令设置。");
       return;
     }
-    
-    const responseMsg = "💰 *USDT-TRC20地址* 💰\n\n" +
-                       "`" + config.value + "`\n\n" +
-                       "💵 交易前请向多人确认！ 💱";
-
-    bot.sendMessage(chatId, responseMsg, { parse_mode: 'Markdown' });
+    const address = config.value;
+    // Tìm media mới nhất cho địa chỉ này
+    const media = await UsdtMedia.findOne({ address }).sort({ createdAt: -1 });
+    // Tạo lưu ý về 6 ký tự đầu, giữa, cuối (tiếng Trung, ngắn gọn)
+    let note = '';
+    if (address.length === 34) {
+      const first6 = address.slice(0, 6);
+      const mid6 = address.slice(14, 20);
+      const last6 = address.slice(-6);
+      note = `\n首6: \`${first6}\`  中6: \`${mid6}\`  末6: \`${last6}\``;
+    }
+    // Danh sách xác nhận (nếu có, tiếng Trung, ngắn gọn)
+    let confirmNote = '';
+    if (media && media.confirmedBy && media.confirmedBy.length > 0) {
+      confirmNote = '\n确认人: ' + media.confirmedBy.map(u => `@${u.username}${u.fullName ? `(${u.fullName})` : ''}`).join(', ');
+    }
+    // Nhắc nhở ngắn gọn
+    const remind = '\n请务必核对地址片段，防止转错！';
+    // Caption tiếng Trung, ngắn gọn
+    const caption = `USDT地址: \n\n\`${address}\`\n\n${note}${confirmNote}${remind}`;
+    if (media) {
+      // Gửi lại media đúng loại
+      if (media.mediaType === 'photo') {
+        await bot.sendPhoto(chatId, media.fileId, { caption, parse_mode: 'Markdown' });
+      } else if (media.mediaType === 'video') {
+        await bot.sendVideo(chatId, media.fileId, { caption, parse_mode: 'Markdown' });
+      } else if (media.mediaType === 'animation') {
+        await bot.sendAnimation(chatId, media.fileId, { caption, parse_mode: 'Markdown' });
+      } else if (media.mediaType === 'sticker') {
+        await bot.sendSticker(chatId, media.fileId);
+        await bot.sendMessage(chatId, caption, { parse_mode: 'Markdown' });
+      } else {
+        await bot.sendMessage(chatId, caption, { parse_mode: 'Markdown' });
+      }
+    } else {
+      // Không có media, gửi text như cũ
+      await bot.sendMessage(chatId, caption, { parse_mode: 'Markdown' });
+    }
   } catch (error) {
     console.error('Error in handleGetUsdtAddressCommand:', error);
     bot.sendMessage(msg.chat.id, "处理获取USDT地址命令时出错。请稍后再试。");
@@ -1234,6 +1354,128 @@ const handleChatWithButtons2Command = async (bot, msg) => {
   await bot.sendMessage(chatId, content, { reply_markup });
 };
 
+/**
+ * Xử lý lệnh xác nhận địa chỉ USDT (/usdtxn) - chỉ thêm, không xóa
+ */
+const handleUsdtConfirmCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const messageText = msg.text;
+    // Lấy địa chỉ USDT hiện tại
+    const config = await Config.findOne({ key: 'USDT_ADDRESS' });
+    if (!config || !config.value) {
+      bot.sendMessage(chatId, "⚠️ 尚未设置USDT-TRC20地址。请使用 /usdt 命令设置。");
+      return;
+    }
+    const address = config.value;
+    // Lấy media mới nhất cho địa chỉ này
+    const media = await UsdtMedia.findOne({ address }).sort({ createdAt: -1 });
+    if (!media) {
+      bot.sendMessage(chatId, "⚠️ 当前地址还没有配图！");
+      return;
+    }
+    // Lấy danh sách username từ lệnh
+    const parts = messageText.split(' ');
+    if (parts.length < 2) {
+      bot.sendMessage(chatId, "用法: /usdtxn @用户名1 @用户名2 ...");
+      return;
+    }
+    const usernames = parts.slice(1).filter(u => u.startsWith('@')).map(u => u.replace('@', ''));
+    if (usernames.length === 0) {
+      bot.sendMessage(chatId, "请至少输入一个用户名！");
+      return;
+    }
+    // Tìm userId và tên cho từng username (nếu có trong User)
+    const users = await User.find({ username: { $in: usernames } });
+    const confirmedBy = users.map(u => ({ username: u.username, userId: u.userId, fullName: (u.firstName || '') + (u.lastName ? ' ' + u.lastName : '') }));
+    usernames.forEach(uname => {
+      if (!confirmedBy.find(u => u.username === uname)) {
+        confirmedBy.push({ username: uname, userId: '', fullName: '' });
+      }
+    });
+    // Thêm vào danh sách đã xác nhận (không trùng lặp)
+    let existed = media.confirmedBy || [];
+    confirmedBy.forEach(newU => {
+      if (!existed.find(u => u.username === newU.username)) {
+        existed.push(newU);
+      }
+    });
+    media.confirmedBy = existed;
+    await media.save();
+    bot.sendMessage(chatId, `✅ 已添加确认人: ${usernames.map(u => '@' + u).join(', ')}\n当前确认人: ${existed.map(u => '@' + u.username).join(', ')}`);
+  } catch (error) {
+    console.error('Error in handleUsdtConfirmCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理 /usdtxn 命令时出错，请稍后再试。");
+  }
+};
+
+/**
+ * Xử lý lệnh xóa xác nhận địa chỉ USDT (/usdtxxn)
+ */
+const handleUsdtRemoveConfirmCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const messageText = msg.text;
+    // Lấy địa chỉ USDT hiện tại
+    const config = await Config.findOne({ key: 'USDT_ADDRESS' });
+    if (!config || !config.value) {
+      bot.sendMessage(chatId, "⚠️ 尚未设置USDT-TRC20地址。请使用 /usdt 命令设置。");
+      return;
+    }
+    const address = config.value;
+    // Lấy media mới nhất cho địa chỉ này
+    const media = await UsdtMedia.findOne({ address }).sort({ createdAt: -1 });
+    if (!media) {
+      bot.sendMessage(chatId, "⚠️ 当前地址还没有配图！");
+      return;
+    }
+    // Lấy danh sách username từ lệnh
+    const parts = messageText.split(' ');
+    if (parts.length < 2) {
+      bot.sendMessage(chatId, "用法: /usdtxxn @用户名1 @用户名2 ...");
+      return;
+    }
+    const usernames = parts.slice(1).filter(u => u.startsWith('@')).map(u => u.replace('@', ''));
+    if (usernames.length === 0) {
+      bot.sendMessage(chatId, "请至少输入一个用户名！");
+      return;
+    }
+    // Xóa khỏi danh sách xác nhận
+    let existed = media.confirmedBy || [];
+    usernames.forEach(uname => {
+      const idx = existed.findIndex(u => u.username === uname);
+      if (idx !== -1) {
+        existed.splice(idx, 1);
+      }
+    });
+    media.confirmedBy = existed;
+    await media.save();
+    bot.sendMessage(chatId, `✅ 已移除确认人: ${usernames.map(u => '@' + u).join(', ')}\n当前确认人: ${existed.map(u => '@' + u.username).join(', ')}`);
+  } catch (error) {
+    console.error('Error in handleUsdtRemoveConfirmCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理 /usdtxxn 命令时出错，请稍后再试。");
+  }
+};
+
+/**
+ * Xử lý lệnh xóa toàn bộ thông tin USDT (/rmusdt)
+ */
+const handleRemoveUsdtCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    // Xóa Config USDT_ADDRESS
+    await Config.deleteOne({ key: 'USDT_ADDRESS' });
+    // Xóa toàn bộ UsdtMedia
+    await UsdtMedia.deleteMany({});
+    bot.sendMessage(chatId, '✅ 已清空所有USDT地址和配图信息！');
+  } catch (error) {
+    console.error('Error in handleRemoveUsdtCommand:', error);
+    bot.sendMessage(msg.chat.id, '清空USDT信息时出错，请稍后再试。');
+  }
+};
+
 module.exports = {
   handleListUsersCommand,
   handleCurrencyUnitCommand,
@@ -1259,5 +1501,8 @@ module.exports = {
   handleAddInline2Command,
   handleRemoveInline2Command,
   handleButtons2Command,
-  handleChatWithButtons2Command
+  handleChatWithButtons2Command,
+  handleUsdtConfirmCommand,
+  handleUsdtRemoveConfirmCommand,
+  handleRemoveUsdtCommand
 }; 

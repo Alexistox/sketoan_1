@@ -311,6 +311,20 @@ bot.on('polling_error', (error) => {
   console.error('Polling error:', error);
 });
 
+// Bổ sung xử lý media + caption là địa chỉ USDT cho lệnh /usdt
+bot.on(['photo', 'video', 'animation', 'sticker'], async (msg) => {
+  try {
+    if (msg.caption && msg.caption.match(/^T.{33}$/)) {
+      await handleSetUsdtAddressCommand(bot, msg);
+      return;
+    }
+    // ... các xử lý khác ...
+  } catch (error) {
+    console.error('Error handling media with caption:', error);
+    await bot.sendMessage(msg.chat.id, "处理媒体时出错，请重试。");
+  }
+});
+
 // Start Express server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);

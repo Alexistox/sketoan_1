@@ -37,8 +37,7 @@ const handleClearCommand = async (bot, msg) => {
     }
     
     await group.save();
-    // Xóa tất cả thông tin thẻ
-    await Card.deleteMany({ chatId: msg.chat.id.toString() });
+    
     // Lưu transaction mới
     const transaction = new Transaction({
       chatId: msg.chat.id.toString(),
@@ -59,7 +58,7 @@ const handleClearCommand = async (bot, msg) => {
     }
     
     // Lấy đơn vị tiền tệ
-    const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
+    const configCurrency = await Config.findOne({ key: `CURRENCY_UNIT_${msg.chat.id}` });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy thông tin giao dịch gần đây
@@ -160,7 +159,7 @@ const handleRateCommand = async (bot, msg) => {
     }
     
     // Lấy đơn vị tiền tệ
-    const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
+    const configCurrency = await Config.findOne({ key: `CURRENCY_UNIT_${chatId}` });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy thông tin giao dịch gần đây
@@ -253,7 +252,7 @@ const handleExchangeRateCommand = async (bot, msg) => {
     }
     
     // Lấy đơn vị tiền tệ
-    const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
+    const configCurrency = await Config.findOne({ key: `CURRENCY_UNIT_${chatId}` });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy thông tin giao dịch gần đây
@@ -347,7 +346,7 @@ const handleDualRateCommand = async (bot, msg) => {
     const exampleValue = (100000 / newExRate) * (1 - newRate / 100);
     
     // Lấy đơn vị tiền tệ
-    const configCurrency = await Config.findOne({ key: 'CURRENCY_UNIT' });
+    const configCurrency = await Config.findOne({ key: `CURRENCY_UNIT_${chatId}` });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy thông tin giao dịch gần đây
