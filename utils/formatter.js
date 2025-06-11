@@ -1,9 +1,14 @@
 /**
  * Định dạng số thông minh: không có dấu phẩy phần nghìn, dấu chấm phần thập phân
  * @param {Number} num - Số cần định dạng
+ * @param {String} format - Loại format ('default' hoặc 'formatted')
  * @returns {String} - Chuỗi đã định dạng
  */
-const formatSmart = (num) => {
+const formatSmart = (num, format = 'default') => {
+  if (format === 'formatted') {
+    return formatNumberWithCommas(num);
+  }
+  
   const floorVal = Math.floor(Math.abs(num));
   const fraction = Math.abs(num) - floorVal;
   
@@ -14,6 +19,31 @@ const formatSmart = (num) => {
     // Số thập phân: hiển thị với 2 chữ số sau dấu chấm
     return num.toFixed(2);
   }
+};
+
+/**
+ * Định dạng số có dấu phẩy ngăn cách hàng nghìn và dấu chấm thập phân
+ * @param {Number} num - Số cần định dạng
+ * @returns {String} - Chuỗi đã định dạng với dấu phẩy
+ */
+const formatNumberWithCommas = (num) => {
+  const floorVal = Math.floor(Math.abs(num));
+  const fraction = Math.abs(num) - floorVal;
+  
+  let result = '';
+  
+  if (fraction < 1e-9) {
+    // Số nguyên: thêm dấu phẩy ngăn cách hàng nghìn
+    result = Math.round(num).toLocaleString('en-US');
+  } else {
+    // Số thập phân: thêm dấu phẩy và hiển thị 2 chữ số sau dấu chấm
+    result = num.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  }
+  
+  return result;
 };
 
 /**
@@ -89,11 +119,32 @@ const formatTimeString = (date) => {
 };
 
 /**
+ * Lấy định dạng số của người dùng theo nhóm
+ */
+const getUserNumberFormat = async (userId, chatId) => {
+  try {
+    const User = require('../models/User');
+    const user = await User.findOne({ userId: userId.toString() });
+    
+    if (!user) return 'default';
+    
+    // Tìm cài đặt cho nhóm cụ thể
+    const groupSetting = user.groupPermissions.find(gp => gp.chatId === chatId.toString());
+    
+    return groupSetting ? groupSetting.numberFormat : 'default';
+  } catch (error) {
+    console.error('Error getting user number format:', error);
+    return 'default';
+  }
+};
+
+/**
  * Tạo tin nhắn telegram không sử dụng markdown
  * @param {Object} jsonData - Dữ liệu cần format
+ * @param {String} numberFormat - Định dạng số ('default' hoặc 'formatted')
  * @returns {String} - Chuỗi đã định dạng
  */
-const formatTelegramMessage = (jsonData) => {
+const formatTelegramMessage = (jsonData, numberFormat = 'default') => {
   let output = '';
   
   // Date header - using US format (MM/DD/YYYY)
@@ -139,22 +190,22 @@ const formatTelegramMessage = (jsonData) => {
   } else {
     output += "*已下发*(0笔):\n\n";
   }
-  output += `总入款💰: ${jsonData.totalAmount}\n`;
+  output += `总入款💰: ${formatSmart(parseFloat(jsonData.totalAmount) || 0, numberFormat)}\n`;
   // Rate information
   const rateInfo = `费率： ${jsonData.rate}\n汇率： ${jsonData.exchangeRate}\n`;
  
   // Thêm ví dụ nếu có
   let rateInfoWithExample = rateInfo;
   if (jsonData.example) {
-    rateInfoWithExample += `\n例如: 100000 = ${jsonData.example} ${jsonData.currencyUnit || 'USDT'}`;
+    rateInfoWithExample += `\n例如: 100000 = ${formatSmart(parseFloat(jsonData.example) || 0, numberFormat)} ${jsonData.currencyUnit || 'USDT'}`;
   }
   
   output += `${rateInfoWithExample}\n`;
   
   // Summary section
-  output += `应下发 : ${jsonData.totalUSDT}  ${jsonData.currencyUnit || 'USDT'}\n`;
-  output += `已下发 : ${jsonData.paidUSDT}  ${jsonData.currencyUnit || 'USDT'}\n`;
-  output += `未下发 : ${jsonData.remainingUSDT}  ${jsonData.currencyUnit || 'USDT'}`;
+  output += `应下发 : ${formatSmart(parseFloat(jsonData.totalUSDT) || 0, numberFormat)}  ${jsonData.currencyUnit || 'USDT'}\n`;
+  output += `已下发 : ${formatSmart(parseFloat(jsonData.paidUSDT) || 0, numberFormat)}  ${jsonData.currencyUnit || 'USDT'}\n`;
+  output += `未下发 : ${formatSmart(parseFloat(jsonData.remainingUSDT) || 0, numberFormat)}  ${jsonData.currencyUnit || 'USDT'}`;
   
   // Cards section (if present)
   if (jsonData.cards && jsonData.cards.length > 0) {
@@ -166,11 +217,13 @@ const formatTelegramMessage = (jsonData) => {
 
 module.exports = {
   formatSmart,
+  formatNumberWithCommas,
   formatRateValue,
   isMathExpression,
   isSingleNumber,
   isTrc20Address,
   formatTelegramMessage,
   formatDateUS,
-  formatTimeString
+  formatTimeString,
+  getUserNumberFormat
 }; 

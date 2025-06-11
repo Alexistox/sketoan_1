@@ -24,7 +24,8 @@ const {
   handleMathExpression,
   handleReportCommand,
   handleHelpCommand,
-  handleStartCommand
+  handleStartCommand,
+  handleFormatCommand
 } = require('./utilCommands');
 
 const {
@@ -101,7 +102,7 @@ const handleMessage = async (bot, msg, cache) => {
     
     if (messageText === '结束') {
       // Xử lý "结束" giống như "/report"
-      await handleReportCommand(bot, chatId, firstName);
+      await handleReportCommand(bot, chatId, firstName, userId);
       return;
     }
     
@@ -473,7 +474,12 @@ const handleMessage = async (bot, msg, cache) => {
       }
       
       if (messageText === '/report') {
-        await handleReportCommand(bot, chatId, firstName);
+        await handleReportCommand(bot, chatId, firstName, userId);
+        return;
+      }
+      
+      if (messageText.startsWith('/format')) {
+        await handleFormatCommand(bot, msg);
         return;
       }
       

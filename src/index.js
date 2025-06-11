@@ -152,7 +152,7 @@ bot.onText(/\/report/, async (msg) => {
       return;
     }
 
-    await handleReportCommand(chatId, bot);
+    await handleReportCommand(bot, chatId, msg.from.first_name, msg.from.id);
   } catch (error) {
     console.error('Error handling report command:', error);
     await bot.sendMessage(msg.chat.id, "生成报告时出错，请重试。");

@@ -2,7 +2,7 @@ const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const Config = require('../models/Config');
-const { formatSmart, formatRateValue, formatTelegramMessage, formatDateUS } = require('../utils/formatter');
+const { formatSmart, formatRateValue, formatTelegramMessage, formatDateUS, getUserNumberFormat } = require('../utils/formatter');
 const { getButtonsStatus, getInlineKeyboard } = require('./userCommands');
 
 /**
@@ -86,8 +86,11 @@ const handleClearCommand = async (bot, msg) => {
       cards: [] // Empty after clear
     };
     
+    // Lấy format của người dùng
+    const userFormat = await getUserNumberFormat(msg.from.id, msg.chat.id);
+    
     // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData);
+    const response = formatTelegramMessage(responseData, userFormat);
     
     // Kiểm tra trạng thái hiển thị buttons
     const showButtons = await getButtonsStatus(msg.chat.id);
@@ -187,8 +190,11 @@ const handleRateCommand = async (bot, msg) => {
       cards: cardSummary
     };
     
+    // Lấy format của người dùng
+    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    
     // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData);
+    const response = formatTelegramMessage(responseData, userFormat);
     bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
     
   } catch (error) {
@@ -280,8 +286,11 @@ const handleExchangeRateCommand = async (bot, msg) => {
       cards: cardSummary
     };
     
+    // Lấy format của người dùng
+    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    
     // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData);
+    const response = formatTelegramMessage(responseData, userFormat);
     bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
     
   } catch (error) {
@@ -374,8 +383,11 @@ const handleDualRateCommand = async (bot, msg) => {
       cards: cardSummary
     };
     
+    // Lấy format của người dùng
+    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    
     // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData);
+    const response = formatTelegramMessage(responseData, userFormat);
     bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
     
   } catch (error) {

@@ -36,7 +36,12 @@ const UserSchema = new mongoose.Schema({
   },
   groupPermissions: [{
     chatId: String,
-    isOperator: { type: Boolean, default: false }
+    isOperator: { type: Boolean, default: false },
+    numberFormat: {
+      type: String,
+      enum: ['default', 'formatted'],
+      default: 'default'
+    }
   }]
 }, { timestamps: true });
 

@@ -2,7 +2,7 @@ const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const Config = require('../models/Config');
-const { formatSmart, formatRateValue, formatTelegramMessage, isSingleNumber, formatDateUS, formatTimeString } = require('../utils/formatter');
+const { formatSmart, formatRateValue, formatTelegramMessage, isSingleNumber, formatDateUS, formatTimeString, getUserNumberFormat } = require('../utils/formatter');
 const { getDepositHistory, getPaymentHistory, getCardSummary } = require('./groupCommands');
 const { getButtonsStatus, getInlineKeyboard } = require('./userCommands');
 
@@ -70,6 +70,9 @@ const handlePlusCommand = async (bot, msg) => {
       const paymentData = await getPaymentHistory(chatId);
       const cardSummary = await getCardSummary(chatId);
       
+      // Lấy format của người dùng trong nhóm này
+      const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+      
       // Tạo response JSON
       const responseData = {
         date: formatDateUS(todayDate),
@@ -86,7 +89,7 @@ const handlePlusCommand = async (bot, msg) => {
       };
       
       // Format và gửi tin nhắn
-      const response = formatTelegramMessage(responseData);
+      const response = formatTelegramMessage(responseData, userFormat);
       
       // Kiểm tra trạng thái hiển thị buttons
       const showButtons = await getButtonsStatus(chatId);
@@ -114,12 +117,15 @@ const handlePlusCommand = async (bot, msg) => {
     group.remainingUSDT = group.totalUSDT - group.usdtPaid;
     await group.save();
     
+    // Lấy format của người dùng cho hiển thị details
+    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `\`${formatTimeString(new Date())}\` *${formatSmart(amountVND)}*\\*${rateFactor}/${yValue} = ${formatSmart(newUSDT)} (${cardCode}) \`${senderName}\``;
+      details = `\`${formatTimeString(new Date())}\` *${formatSmart(amountVND, userFormat)}*\\*${rateFactor}/${yValue} = ${formatSmart(newUSDT, userFormat)} (${cardCode}) \`${senderName}\``;
     } else {
-      details = `\`${formatTimeString(new Date())}\` *${formatSmart(amountVND)}*\\*${rateFactor}/${yValue} = ${formatSmart(newUSDT)} \`${senderName}\``;
+      details = `\`${formatTimeString(new Date())}\` *${formatSmart(amountVND, userFormat)}*\\*${rateFactor}/${yValue} = ${formatSmart(newUSDT, userFormat)} \`${senderName}\``;
     }
     
     // Lưu giao dịch mới
@@ -197,7 +203,7 @@ const handlePlusCommand = async (bot, msg) => {
     }
     
     // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData);
+    const response = formatTelegramMessage(responseData, userFormat);
     
     // Kiểm tra trạng thái hiển thị buttons
     const showButtons = await getButtonsStatus(chatId);
@@ -286,12 +292,15 @@ const handleMinusCommand = async (bot, msg) => {
     const configCurrency = await Config.findOne({ key: `CURRENCY_UNIT_${chatId}` });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
+    // Lấy format của người dùng cho hiển thị details
+    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `\`${formatTimeString(new Date())}\` -*${formatSmart(amountVND)}*\\*${rateFactor}/${yValue} = -${formatSmart(minusUSDT)} (${cardCode}) \`${senderName}\``;
+      details = `\`${formatTimeString(new Date())}\` -*${formatSmart(amountVND, userFormat)}*\\*${rateFactor}/${yValue} = -${formatSmart(minusUSDT, userFormat)} (${cardCode}) \`${senderName}\``;
     } else {
-      details = `\`${formatTimeString(new Date())}\` -*${formatSmart(amountVND)}*\\*${rateFactor}/${yValue} = -${formatSmart(minusUSDT)} \`${senderName}\``;
+      details = `\`${formatTimeString(new Date())}\` -*${formatSmart(amountVND, userFormat)}*\\*${rateFactor}/${yValue} = -${formatSmart(minusUSDT, userFormat)} \`${senderName}\``;
     }
     // Lưu giao dịch mới
     const transaction = new Transaction({
@@ -365,7 +374,7 @@ const handleMinusCommand = async (bot, msg) => {
     }
     
     // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData);
+    const response = formatTelegramMessage(responseData, userFormat);
     
     // Kiểm tra trạng thái hiển thị buttons
     const showButtons = await getButtonsStatus(chatId);
@@ -459,12 +468,15 @@ const handlePercentCommand = async (bot, msg) => {
     group.remainingUSDT = group.totalUSDT - group.usdtPaid;
     await group.save();
     
+    // Lấy format của người dùng cho hiển thị details  
+    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    
     // Tạo chi tiết giao dịch
     let details;
     if (cardCode) {
-      details = `\`${formatTimeString(new Date())}\`    *${formatSmart(payUSDT)}*  ${currencyUnit} (${cardCode})`;
+      details = `\`${formatTimeString(new Date())}\`    *${formatSmart(payUSDT, userFormat)}*  ${currencyUnit} (${cardCode})`;
     } else {
-      details = `\`${formatTimeString(new Date())}\`    *${formatSmart(payUSDT)}*  ${currencyUnit}`;
+      details = `\`${formatTimeString(new Date())}\`    *${formatSmart(payUSDT, userFormat)}*  ${currencyUnit}`;
     }
     
     // Lưu giao dịch mới
@@ -531,7 +543,7 @@ const handlePercentCommand = async (bot, msg) => {
     }
     
     // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData);
+    const response = formatTelegramMessage(responseData, userFormat);
     
     // Kiểm tra trạng thái hiển thị buttons
     const showButtons = await getButtonsStatus(chatId);
@@ -706,8 +718,11 @@ const handleSkipCommand = async (bot, msg) => {
       cards: cardSummary
     };
     
+    // Lấy format của người dùng
+    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    
     // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData);
+    const response = formatTelegramMessage(responseData, userFormat);
     
     // Kiểm tra trạng thái hiển thị buttons
     const showButtons = await getButtonsStatus(chatId);

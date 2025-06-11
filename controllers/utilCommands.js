@@ -2,7 +2,8 @@ const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const Config = require('../models/Config');
-const { formatSmart, formatRateValue, formatTelegramMessage, isTrc20Address, formatDateUS } = require('../utils/formatter');
+const User = require('../models/User');
+const { formatSmart, formatRateValue, formatTelegramMessage, isTrc20Address, formatDateUS, getUserNumberFormat } = require('../utils/formatter');
 const { getDepositHistory, getPaymentHistory, getCardSummary } = require('./groupCommands');
 const { getButtonsStatus, getInlineKeyboard } = require('./userCommands');
 
@@ -44,10 +45,13 @@ const handleCalculateUsdtCommand = async (bot, msg) => {
     const configCurrency = await Config.findOne({ key: `CURRENCY_UNIT_${chatId}` });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
+    // Lấy format của người dùng trong nhóm này
+    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    
     // Gửi kết quả
     bot.sendMessage(
       chatId,
-      `🔄 ${formatSmart(amount)} ➡️ ${currencyUnit} ${formatSmart(usdtValue)}\n` +
+      `🔄 ${formatSmart(amount, userFormat)} ➡️ ${currencyUnit} ${formatSmart(usdtValue, userFormat)}\n` +
       `(汇率: ${formatRateValue(yValue)}, 费率: ${formatRateValue(xValue)}%)`
     );
   } catch (error) {
@@ -94,10 +98,13 @@ const handleCalculateVndCommand = async (bot, msg) => {
     const configCurrency = await Config.findOne({ key: `CURRENCY_UNIT_${chatId}` });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
+    // Lấy format của người dùng trong nhóm này
+    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    
     // Gửi kết quả
     bot.sendMessage(
       chatId,
-      `🔄 ${currencyUnit} ${formatSmart(amount)} ➡️ ${formatSmart(vndValue)}\n` +
+      `🔄 ${currencyUnit} ${formatSmart(amount, userFormat)} ➡️ ${formatSmart(vndValue, userFormat)}\n` +
       `(汇率: ${formatRateValue(yValue)}, 费率: ${formatRateValue(xValue)}%)`
     );
   } catch (error) {
@@ -125,7 +132,7 @@ const handleMathExpression = async (bot, chatId, expression, senderName) => {
       return;
     }
     
-    // Gửi kết quả
+    // Gửi kết quả với format mặc định cho biểu thức toán học
     bot.sendMessage(
       chatId,
       `🧮 ${expression} = ${formatSmart(result)}`
@@ -155,7 +162,7 @@ const handleTrc20Address = async (bot, chatId, address, senderName) => {
 /**
  * Xử lý lệnh báo cáo (/report hoặc 结束)
  */
-const handleReportCommand = async (bot, chatId, senderName) => {
+const handleReportCommand = async (bot, chatId, senderName, userId = null) => {
   try {
     // Tìm group
     const group = await Group.findOne({ chatId: chatId.toString() });
@@ -236,8 +243,11 @@ const handleReportCommand = async (bot, chatId, senderName) => {
       cards: cardSummary
     };
     
+    // Lấy format của người dùng nếu có userId
+    const userFormat = userId ? await getUserNumberFormat(userId, chatId) : 'default';
+    
     // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData);
+    const response = formatTelegramMessage(responseData, userFormat);
     
     // Kiểm tra trạng thái hiển thị buttons
     const showButtons = await getButtonsStatus(chatId);
@@ -323,6 +333,11 @@ const handleHelpCommand = async (bot, chatId) => {
 /migrate - 数据迁移
 
 -------------------------
+*数字格式设置:*
+/format A - 切换到格式化显示 (1,000,000.00)
+/format - 切换到默认显示 (1000000)
+
+-------------------------
 *其他功能:*
 /c - 从图片提取银行信息
 输入数学表达式如 2+2 直接计算
@@ -348,6 +363,61 @@ const handleStartCommand = async (bot, chatId) => {
   }
 };
 
+/**
+ * Xử lý lệnh cài đặt format số (/format A)
+ */
+const handleFormatCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const messageText = msg.text;
+    
+    // Tìm người dùng
+    let user = await User.findOne({ userId: userId.toString() });
+    if (!user) {
+      bot.sendMessage(chatId, "用户未找到。请先发送任意消息注册。");
+      return;
+    }
+    
+    // Tìm hoặc tạo cài đặt cho nhóm này
+    let groupSetting = user.groupPermissions.find(gp => gp.chatId === chatId.toString());
+    if (!groupSetting) {
+      // Tạo mới nếu chưa có
+      groupSetting = {
+        chatId: chatId.toString(),
+        isOperator: false,
+        numberFormat: 'default'
+      };
+      user.groupPermissions.push(groupSetting);
+    }
+    
+    if (messageText === '/format') {
+      // Quay về format mặc định
+      groupSetting.numberFormat = 'default';
+      await user.save();
+      bot.sendMessage(chatId, "✅ 本群已切换到默认数字格式 (例: 1000000)");
+    } else if (messageText === '/format A') {
+      // Chuyển sang format có dấu phẩy
+      groupSetting.numberFormat = 'formatted';
+      await user.save();
+      bot.sendMessage(chatId, "✅ 本群已切换到格式化数字格式 (例: 1,000,000.00)");
+    } else {
+      // Hiển thị trợ giúp
+      const currentFormat = groupSetting.numberFormat === 'formatted' ? '格式化显示' : '默认显示';
+      bot.sendMessage(chatId, 
+        "🔢 *数字格式设置 (仅本群有效):*\n\n" +
+                  "/format A - 切换到格式化显示 (1,000,000.00) [仅本群]\n" +
+      "/format - 切换到默认显示 (1000000) [仅本群]\n\n" +
+        "本群当前格式: " + currentFormat,
+        { parse_mode: 'Markdown' }
+      );
+    }
+  } catch (error) {
+    console.error('Error in handleFormatCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理格式命令时出错。请稍后再试。");
+  }
+};
+
 module.exports = {
   handleCalculateUsdtCommand,
   handleCalculateVndCommand,
@@ -355,5 +425,6 @@ module.exports = {
   handleTrc20Address,
   handleReportCommand,
   handleHelpCommand,
-  handleStartCommand
+  handleStartCommand,
+  handleFormatCommand
 }; 
