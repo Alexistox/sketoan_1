@@ -139,6 +139,21 @@ const getUserNumberFormat = async (userId, chatId) => {
 };
 
 /**
+ * Lấy định dạng số chung của nhóm
+ */
+const getGroupNumberFormat = async (chatId) => {
+  try {
+    const Group = require('../models/Group');
+    const group = await Group.findOne({ chatId: chatId.toString() });
+    
+    return group ? group.numberFormat : 'default';
+  } catch (error) {
+    console.error('Error getting group number format:', error);
+    return 'default';
+  }
+};
+
+/**
  * Tạo tin nhắn telegram không sử dụng markdown
  * @param {Object} jsonData - Dữ liệu cần format
  * @param {String} numberFormat - Định dạng số ('default' hoặc 'formatted')
@@ -225,5 +240,6 @@ module.exports = {
   formatTelegramMessage,
   formatDateUS,
   formatTimeString,
-  getUserNumberFormat
+  getUserNumberFormat,
+  getGroupNumberFormat
 }; 

@@ -2,7 +2,7 @@ const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const Config = require('../models/Config');
-const { formatSmart, formatRateValue, formatTelegramMessage, isSingleNumber, formatDateUS, formatTimeString, getUserNumberFormat } = require('../utils/formatter');
+const { formatSmart, formatRateValue, formatTelegramMessage, isSingleNumber, formatDateUS, formatTimeString, getUserNumberFormat, getGroupNumberFormat } = require('../utils/formatter');
 const { getDepositHistory, getPaymentHistory, getCardSummary } = require('./groupCommands');
 const { getButtonsStatus, getInlineKeyboard } = require('./userCommands');
 
@@ -71,7 +71,7 @@ const handlePlusCommand = async (bot, msg) => {
       const cardSummary = await getCardSummary(chatId);
       
       // Lấy format của người dùng trong nhóm này
-      const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+      const userFormat = await getGroupNumberFormat(chatId);
       
       // Tạo response JSON
       const responseData = {
@@ -118,7 +118,7 @@ const handlePlusCommand = async (bot, msg) => {
     await group.save();
     
     // Lấy format của người dùng cho hiển thị details
-    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    const userFormat = await getGroupNumberFormat(chatId);
     
     // Tạo chi tiết giao dịch
     let details;
@@ -293,7 +293,7 @@ const handleMinusCommand = async (bot, msg) => {
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy format của người dùng cho hiển thị details
-    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    const userFormat = await getGroupNumberFormat(chatId);
     
     // Tạo chi tiết giao dịch
     let details;
@@ -469,7 +469,7 @@ const handlePercentCommand = async (bot, msg) => {
     await group.save();
     
     // Lấy format của người dùng cho hiển thị details  
-    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    const userFormat = await getGroupNumberFormat(chatId);
     
     // Tạo chi tiết giao dịch
     let details;
@@ -719,7 +719,7 @@ const handleSkipCommand = async (bot, msg) => {
     };
     
     // Lấy format của người dùng
-    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    const userFormat = await getGroupNumberFormat(chatId);
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData, userFormat);

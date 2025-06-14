@@ -30,6 +30,11 @@ const GroupSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  numberFormat: {
+    type: String,
+    enum: ['default', 'formatted'],
+    default: 'default'
+  },
   lastClearDate: {
     type: Date,
     default: Date.now

@@ -3,7 +3,7 @@ const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const Config = require('../models/Config');
 const User = require('../models/User');
-const { formatSmart, formatRateValue, formatTelegramMessage, isTrc20Address, formatDateUS, getUserNumberFormat } = require('../utils/formatter');
+const { formatSmart, formatRateValue, formatTelegramMessage, isTrc20Address, formatDateUS, getUserNumberFormat, getGroupNumberFormat } = require('../utils/formatter');
 const { getDepositHistory, getPaymentHistory, getCardSummary } = require('./groupCommands');
 const { getButtonsStatus, getInlineKeyboard } = require('./userCommands');
 
@@ -46,7 +46,7 @@ const handleCalculateUsdtCommand = async (bot, msg) => {
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy format của người dùng trong nhóm này
-    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    const userFormat = await getGroupNumberFormat(chatId);
     
     // Gửi kết quả
     bot.sendMessage(
@@ -99,7 +99,7 @@ const handleCalculateVndCommand = async (bot, msg) => {
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy format của người dùng trong nhóm này
-    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    const userFormat = await getGroupNumberFormat(chatId);
     
     // Gửi kết quả
     bot.sendMessage(
@@ -244,7 +244,7 @@ const handleReportCommand = async (bot, chatId, senderName, userId = null) => {
     };
     
     // Lấy format của người dùng nếu có userId
-    const userFormat = userId ? await getUserNumberFormat(userId, chatId) : 'default';
+    const userFormat = userId ? await getGroupNumberFormat(chatId) : 'default';
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData, userFormat);
@@ -334,8 +334,8 @@ const handleHelpCommand = async (bot, chatId) => {
 
 -------------------------
 *数字格式设置:*
-/format A - 切换到格式化显示 (1,000,000.00)
-/format - 切换到默认显示 (1000000)
+/format A - 切换到格式化显示 (1,000,000.00) [全群生效]
+/format - 切换到默认显示 (1000000) [全群生效]
 
 -------------------------
 *其他功能:*
@@ -372,42 +372,30 @@ const handleFormatCommand = async (bot, msg) => {
     const userId = msg.from.id;
     const messageText = msg.text;
     
-    // Tìm người dùng
-    let user = await User.findOne({ userId: userId.toString() });
-    if (!user) {
-      bot.sendMessage(chatId, "用户未找到。请先发送任意消息注册。");
+    // Tìm hoặc tạo group
+    let group = await Group.findOne({ chatId: chatId.toString() });
+    if (!group) {
+      bot.sendMessage(chatId, "请先设置汇率和费率后再设置数字格式。");
       return;
     }
     
-    // Tìm hoặc tạo cài đặt cho nhóm này
-    let groupSetting = user.groupPermissions.find(gp => gp.chatId === chatId.toString());
-    if (!groupSetting) {
-      // Tạo mới nếu chưa có
-      groupSetting = {
-        chatId: chatId.toString(),
-        isOperator: false,
-        numberFormat: 'default'
-      };
-      user.groupPermissions.push(groupSetting);
-    }
-    
     if (messageText === '/format') {
-      // Quay về format mặc định
-      groupSetting.numberFormat = 'default';
-      await user.save();
-      bot.sendMessage(chatId, "✅ 本群已切换到默认数字格式 (例: 1000000)");
+      // Quay về format mặc định cho cả nhóm
+      group.numberFormat = 'default';
+      await group.save();
+      bot.sendMessage(chatId, "✅ 本群已切换到默认数字格式 (例: 1000000) - 对所有成员生效");
     } else if (messageText === '/format A') {
-      // Chuyển sang format có dấu phẩy
-      groupSetting.numberFormat = 'formatted';
-      await user.save();
-      bot.sendMessage(chatId, "✅ 本群已切换到格式化数字格式 (例: 1,000,000.00)");
+      // Chuyển sang format có dấu phẩy cho cả nhóm
+      group.numberFormat = 'formatted';
+      await group.save();
+      bot.sendMessage(chatId, "✅ 本群已切换到格式化数字格式 (例: 1,000,000.00) - 对所有成员生效");
     } else {
       // Hiển thị trợ giúp
-      const currentFormat = groupSetting.numberFormat === 'formatted' ? '格式化显示' : '默认显示';
+      const currentFormat = group.numberFormat === 'formatted' ? '格式化显示' : '默认显示';
       bot.sendMessage(chatId, 
-        "🔢 *数字格式设置 (仅本群有效):*\n\n" +
-                  "/format A - 切换到格式化显示 (1,000,000.00) [仅本群]\n" +
-      "/format - 切换到默认显示 (1000000) [仅本群]\n\n" +
+        "🔢 *数字格式设置 (对全群生效):*\n\n" +
+        "/format A - 切换到格式化显示 (1,000,000.00) [全群生效]\n" +
+        "/format - 切换到默认显示 (1000000) [全群生效]\n\n" +
         "本群当前格式: " + currentFormat,
         { parse_mode: 'Markdown' }
       );

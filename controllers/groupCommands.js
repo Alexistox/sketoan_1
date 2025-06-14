@@ -2,7 +2,7 @@ const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const Config = require('../models/Config');
-const { formatSmart, formatRateValue, formatTelegramMessage, formatDateUS, getUserNumberFormat } = require('../utils/formatter');
+const { formatSmart, formatRateValue, formatTelegramMessage, formatDateUS, getUserNumberFormat, getGroupNumberFormat } = require('../utils/formatter');
 const { getButtonsStatus, getInlineKeyboard } = require('./userCommands');
 
 /**
@@ -87,7 +87,7 @@ const handleClearCommand = async (bot, msg) => {
     };
     
     // Lấy format của người dùng
-    const userFormat = await getUserNumberFormat(msg.from.id, msg.chat.id);
+    const userFormat = await getGroupNumberFormat(msg.chat.id);
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData, userFormat);
@@ -191,7 +191,7 @@ const handleRateCommand = async (bot, msg) => {
     };
     
     // Lấy format của người dùng
-    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    const userFormat = await getGroupNumberFormat(chatId);
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData, userFormat);
@@ -287,7 +287,7 @@ const handleExchangeRateCommand = async (bot, msg) => {
     };
     
     // Lấy format của người dùng
-    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    const userFormat = await getGroupNumberFormat(chatId);
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData, userFormat);
@@ -384,7 +384,7 @@ const handleDualRateCommand = async (bot, msg) => {
     };
     
     // Lấy format của người dùng
-    const userFormat = await getUserNumberFormat(msg.from.id, chatId);
+    const userFormat = await getGroupNumberFormat(chatId);
     
     // Format và gửi tin nhắn
     const response = formatTelegramMessage(responseData, userFormat);
