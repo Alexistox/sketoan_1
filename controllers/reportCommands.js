@@ -33,32 +33,22 @@ const handleReport1Command = async (bot, msg) => {
     const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
     const reportUrl = `${baseUrl}/report/${chatId}/${token}`;
     
-    console.log('Generated report URL:', reportUrl);
-    
-    // Kiểm tra nếu URL là localhost thì cảnh báo
-    if (baseUrl.includes('localhost')) {
-      bot.sendMessage(chatId, "⚠️ 注意：当前使用localhost地址，外部无法访问。请使用ngrok或设置BASE_URL环境变量。");
-      return;
-    }
-    
-    // Thông báo cho người dùng với HTML link và inline keyboard
-    const message = `📊 <b>交易报告已生成</b>
+    // Thông báo cho người dùng với inline keyboard
+    const message = `📊 *交易报告已生成*
 
-ℹ️ <b>说明：</b>
+ℹ️ *说明：*
 • 该链接包含群组的所有交易明细
 • 包括入款、下发、卡片等信息汇总  
 • 链接仅适用于本群组，具有安全验证
 • 可以在手机或电脑浏览器中打开查看
 
-⏰ 报告生成时间：${new Date().toLocaleString('zh-CN')}
-
-🔗 直接链接: <code>${reportUrl}</code>`;
+⏰ 报告生成时间：${new Date().toLocaleString('zh-CN')}`;
     
-    // Tạo inline keyboard với URL button để mở browser
+    // Tạo inline keyboard với link button
     const keyboard = {
       inline_keyboard: [[
         {
-          text: '🔗 打开交易报告',
+          text: '🔗 查看完整交易报告',
           url: reportUrl
         }
       ]]
@@ -66,8 +56,12 @@ const handleReport1Command = async (bot, msg) => {
     
     // Gửi tin nhắn với inline keyboard
     bot.sendMessage(chatId, message, { 
-      parse_mode: 'HTML',
-      reply_markup: keyboard,
+      parse_mode: 'Markdown',
+      reply_markup: keyboard
+    });
+    
+    // Gửi thêm tin nhắn với link plaintext để backup
+    bot.sendMessage(chatId, `🔗 直接访问链接：\n${reportUrl}`, {
       disable_web_page_preview: true
     });
     
