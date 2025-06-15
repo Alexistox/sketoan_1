@@ -1,10 +1,97 @@
 const express = require('express');
 const router = express.Router();
-const Group = require('../models/Group');
-const Transaction = require('../models/Transaction');
-const Card = require('../models/Card');
-const Config = require('../models/Config');
-const { formatSmart, formatTimeString, getGroupNumberFormat } = require('../utils/formatter');
+const mongoose = require('mongoose');
+const { formatSmart, formatTimeString } = require('../utils/formatter');
+
+// Tạo kết nối riêng đến MongoDB online
+let onlineConnection = null;
+
+const connectToOnlineDB = async () => {
+  if (onlineConnection && onlineConnection.readyState === 1) {
+    return onlineConnection;
+  }
+  
+  const onlineMongoUri = process.env.MONGODB_ONLINE_URI || process.env.MONGODB_URI;
+  if (!onlineMongoUri) {
+    throw new Error('MONGODB_ONLINE_URI or MONGODB_URI environment variable not found');
+  }
+  
+  onlineConnection = await mongoose.createConnection(onlineMongoUri, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  });
+  
+  console.log('Connected to online MongoDB for reports');
+  return onlineConnection;
+};
+
+// Định nghĩa schema cho online connection
+const getOnlineModels = (connection) => {
+  // Group Schema
+  const GroupSchema = new mongoose.Schema({
+    chatId: { type: String, required: true, unique: true },
+    totalVND: { type: Number, default: 0 },
+    totalUSDT: { type: Number, default: 0 },
+    usdtPaid: { type: Number, default: 0 },
+    remainingUSDT: { type: Number, default: 0 },
+    rate: { type: Number, default: 0 },
+    exchangeRate: { type: Number, default: 0 },
+    lastClearDate: { type: Date, default: Date.now }
+  }, { timestamps: true });
+
+  // Transaction Schema
+  const TransactionSchema = new mongoose.Schema({
+    chatId: { type: String, required: true },
+    type: { type: String, enum: ['deposit', 'withdraw', 'payment', 'setRate', 'setExchangeRate', 'clear', 'delete', 'skip'], required: true },
+    amount: { type: Number, default: 0 },
+    usdtAmount: { type: Number, default: 0 },
+    cardCode: { type: String, default: '' },
+    limit: { type: Number, default: 0 },
+    senderName: { type: String, required: true },
+    message: { type: String, default: '' },
+    details: { type: String, default: '' },
+    timestamp: { type: Date, default: Date.now },
+    rate: { type: Number, default: 0 },
+    exchangeRate: { type: Number, default: 0 },
+    messageId: { type: String, default: null },
+    skipped: { type: Boolean, default: false },
+    skipReason: { type: String, default: '' }
+  }, { timestamps: true });
+
+  // Card Schema
+  const CardSchema = new mongoose.Schema({
+    chatId: { type: String, required: true },
+    cardCode: { type: String, required: true },
+    total: { type: Number, default: 0 },
+    paid: { type: Number, default: 0 },
+    limit: { type: Number, default: 0 },
+    hidden: { type: Boolean, default: false },
+    lastUpdated: { type: Date, default: Date.now }
+  }, { timestamps: true });
+
+  // Config Schema
+  const ConfigSchema = new mongoose.Schema({
+    key: { type: String, required: true, unique: true },
+    value: { type: String, required: true },
+    description: { type: String, default: '' }
+  }, { timestamps: true });
+
+  return {
+    Group: connection.model('Group', GroupSchema),
+    Transaction: connection.model('Transaction', TransactionSchema),
+    Card: connection.model('Card', CardSchema),
+    Config: connection.model('Config', ConfigSchema)
+  };
+};
+
+// Hàm lấy format số đơn giản (không cần kết nối local)
+const getNumberFormat = (chatId) => {
+  // Default format - có thể customize sau
+  return {
+    thousands: ',',
+    decimal: '.'
+  };
+};
 
 /**
  * Route để hiển thị báo cáo giao dịch cho một nhóm cụ thể
@@ -25,23 +112,27 @@ router.get('/report/:chatId/:token', async (req, res) => {
       return res.status(403).send('<h1>Access Denied</h1><p>Invalid token</p>');
     }
     
-    // Tìm group
+    // Kết nối đến MongoDB online
+    const connection = await connectToOnlineDB();
+    const { Group, Transaction, Card, Config } = getOnlineModels(connection);
+    
+    // Tìm group từ online database
     const group = await Group.findOne({ chatId: chatId.toString() });
     if (!group) {
       return res.status(404).send('<h1>Group Not Found</h1><p>No data available for this group</p>');
     }
     
-    // Lấy đơn vị tiền tệ
+    // Lấy đơn vị tiền tệ từ online database
     const configCurrency = await Config.findOne({ key: `CURRENCY_UNIT_${chatId}` });
     const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
     
     // Lấy format số của nhóm
-    const numberFormat = await getGroupNumberFormat(chatId);
+    const numberFormat = getNumberFormat(chatId);
     
     // Lấy thông tin giao dịch từ lần clear cuối
     const lastClearDate = group.lastClearDate;
     
-    // Lấy tất cả các giao dịch deposit/withdraw
+    // Lấy tất cả các giao dịch deposit/withdraw từ online database
     const depositTransactions = await Transaction.find({
       chatId: chatId.toString(),
       type: { $in: ['deposit', 'withdraw'] },
@@ -49,7 +140,7 @@ router.get('/report/:chatId/:token', async (req, res) => {
       skipped: { $ne: true }
     }).sort({ timestamp: 1 });
     
-    // Lấy tất cả các giao dịch payment
+    // Lấy tất cả các giao dịch payment từ online database
     const paymentTransactions = await Transaction.find({
       chatId: chatId.toString(),
       type: 'payment',
@@ -57,7 +148,7 @@ router.get('/report/:chatId/:token', async (req, res) => {
       skipped: { $ne: true }
     }).sort({ timestamp: 1 });
     
-    // Lấy thông tin thẻ
+    // Lấy thông tin thẻ từ online database
     const cards = await Card.find({ 
       chatId: chatId.toString(),
       hidden: { $ne: true }
@@ -109,7 +200,11 @@ router.get('/report/:chatId/:token', async (req, res) => {
     
   } catch (error) {
     console.error('Error generating report:', error);
-    res.status(500).send('<h1>Server Error</h1><p>Unable to generate report</p>');
+    if (error.message.includes('MONGODB_ONLINE_URI')) {
+      res.status(500).send('<h1>Database Configuration Error</h1><p>MongoDB online connection not configured</p>');
+    } else {
+      res.status(500).send('<h1>Server Error</h1><p>Unable to generate report: ' + error.message + '</p>');
+    }
   }
 });
 
@@ -438,7 +533,8 @@ function generateReportHTML(data) {
         
         <div class="footer">
             <p>上次清零: ${lastClearDate ? new Date(lastClearDate).toLocaleString('zh-CN') : '从未清零'}</p>
-            <p>本报告由 Telegram Bot 自动生成</p>
+            <p>本报告由 Telegram Bot 自动生成 | 数据来源: MongoDB Online</p>
+            <p><small>Real-time data from online database</small></p>
         </div>
     </div>
 </body>
