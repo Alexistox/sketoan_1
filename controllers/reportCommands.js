@@ -1,5 +1,43 @@
-const Group = require('../models/Group');
+const mongoose = require('mongoose');
 const { isUserOperator } = require('../utils/permissions');
+
+// Tạo kết nối riêng đến MongoDB online
+let onlineConnection = null;
+
+const connectToOnlineDB = async () => {
+  if (onlineConnection && onlineConnection.readyState === 1) {
+    return onlineConnection;
+  }
+  
+  const onlineMongoUri = process.env.MONGODB_ONLINE_URI || process.env.MONGODB_URI;
+  if (!onlineMongoUri) {
+    throw new Error('MONGODB_ONLINE_URI or MONGODB_URI environment variable not found');
+  }
+  
+  onlineConnection = await mongoose.createConnection(onlineMongoUri, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  });
+  
+  console.log('Connected to online MongoDB for report command');
+  return onlineConnection;
+};
+
+// Group Schema cho online connection
+const getOnlineGroupModel = (connection) => {
+  const GroupSchema = new mongoose.Schema({
+    chatId: { type: String, required: true, unique: true },
+    totalVND: { type: Number, default: 0 },
+    totalUSDT: { type: Number, default: 0 },
+    usdtPaid: { type: Number, default: 0 },
+    remainingUSDT: { type: Number, default: 0 },
+    rate: { type: Number, default: 0 },
+    exchangeRate: { type: Number, default: 0 },
+    lastClearDate: { type: Date, default: Date.now }
+  }, { timestamps: true });
+
+  return connection.model('Group', GroupSchema);
+};
 
 /**
  * Xử lý lệnh /report1 - tạo link báo cáo giao dịch trên web
@@ -15,7 +53,10 @@ const handleReport1Command = async (bot, msg) => {
       return;
     }
     
-    // Kiểm tra xem nhóm có tồn tại không
+    // Kết nối đến MongoDB online và kiểm tra group
+    const connection = await connectToOnlineDB();
+    const Group = getOnlineGroupModel(connection);
+    
     const group = await Group.findOne({ chatId: chatId.toString() });
     if (!group) {
       bot.sendMessage(chatId, "❌ 该群组还没有任何交易数据。请先设置汇率费率。");
@@ -67,7 +108,11 @@ const handleReport1Command = async (bot, msg) => {
     
   } catch (error) {
     console.error('Error in handleReport1Command:', error);
-    bot.sendMessage(msg.chat.id, "处理 /report1 命令时出错，请重试。");
+    if (error.message.includes('MONGODB_ONLINE_URI')) {
+      bot.sendMessage(msg.chat.id, "❌ 数据库连接配置错误，请联系管理员。");
+    } else {
+      bot.sendMessage(msg.chat.id, "处理 /report1 命令时出错，请重试。");
+    }
   }
 };
 
