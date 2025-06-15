@@ -909,6 +909,8 @@ const processAutoPlusMessage = async (bot, msg) => {
   try {
     const chatId = msg.chat.id;
     const messageText = msg.text || '';
+    const userId = msg.from.id;
+    const isBot = msg.from.is_bot || false;
     
     // Tìm group và kiểm tra autoplus
     const group = await Group.findOne({ chatId: chatId.toString() });
@@ -920,6 +922,8 @@ const processAutoPlusMessage = async (bot, msg) => {
     const amount = extractAmountFromText(messageText, group.autoplus.template);
     
     if (amount) {
+      console.log();
+      
       // Tạo tin nhắn giả để sử dụng với handlePlusCommand
       const fakeMsg = {
         ...msg,

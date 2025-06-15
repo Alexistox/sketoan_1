@@ -9,7 +9,7 @@ const {
   isTrc20Address,
   formatTelegramMessage
 } = require('../utils/formatter');
-const { isUserOwner, isUserAdmin, isUserOperator } = require('../utils/permissions');
+const { isUserOwner, isUserAdmin, isUserOperator, isBotAllowed } = require('../utils/permissions');
 
 const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
@@ -50,7 +50,7 @@ const handleMessage = async (bot, msg, cache) => {
     const lastName = msg.from.last_name || '';
     const timestamp = new Date();
     const messageText = msg.text || '';
-    const isBot = msg.from.is_bot || false; // Check if message is from a bot
+    const isBot = msg.from.is_bot || false; // Kiểm tra xem tin nhắn có từ bot không
     
     // Nếu người dùng gửi '开始', chuyển thành '/st' để dùng chung logic
     if (messageText === '开始') {
@@ -87,8 +87,8 @@ const handleMessage = async (bot, msg, cache) => {
       return;
     }
     
-    // Kiểm tra và đăng ký người dùng mới
-    await checkAndRegisterUser(userId, username, firstName, lastName);
+    // Kiểm tra và đăng ký người dùng mới (bao gồm cả bot)
+    await checkAndRegisterUser(userId, username, firstName, lastName, isBot);
     
     // Xử lý tin nhắn tự động autoplus (trước khi xử lý các lệnh)
     // Chỉ xử lý nếu không phải là lệnh bắt đầu bằng / hoặc các lệnh tiếng Trung đặc biệt
@@ -110,17 +110,7 @@ const handleMessage = async (bot, msg, cache) => {
         messageText !== 'u来u来' &&
         messageText !== '开始') {
       
-      // Đối với bot messages, chỉ xử lý autoplus không cần kiểm tra quyền
-      if (isBot) {
-        const processed = await processAutoPlusMessage(bot, msg);
-        if (processed) {
-          return; // Đã xử lý bằng autoplus
-        }
-        // Nếu bot message không match autoplus, bỏ qua (không xử lý lệnh khác)
-        return;
-      }
-      
-      // Đối với user messages, xử lý bình thường
+      // Thử xử lý với autoplus
       const processed = await processAutoPlusMessage(bot, msg);
       if (processed) {
         return; // Đã xử lý bằng autoplus, không cần xử lý thêm
@@ -694,7 +684,7 @@ const handleMessage = async (bot, msg, cache) => {
 };
 
 // Hàm kiểm tra và đăng ký người dùng mới
-const checkAndRegisterUser = async (userId, username, firstName, lastName) => {
+const checkAndRegisterUser = async (userId, username, firstName, lastName, isBot) => {
   try {
     let user = await User.findOne({ userId: userId.toString() });
     
@@ -712,14 +702,21 @@ const checkAndRegisterUser = async (userId, username, firstName, lastName) => {
         lastName,
         isOwner: isFirstUser,
         isAdmin: isFirstUser,
-        groupPermissions: []
+        groupPermissions: [],
+        isBot: isBot || false
       });
       
       await user.save();
       
       if (isFirstUser) {
         console.log(`User ${username} (ID: ${userId}) is now the bot owner and admin`);
+      } else if (isBot) {
+        console.log(`Bot ${username} (ID: ${userId}) has been registered`);
       }
+    } else if (isBot && !user.isBot) {
+      // Cập nhật isBot flag nếu user tồn tại nhưng chưa được đánh dấu là bot
+      user.isBot = true;
+      await user.save();
     }
     
     return user;
