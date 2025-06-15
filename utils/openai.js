@@ -103,6 +103,101 @@ const extractBankInfoFromImage = async (imageBuffer) => {
   }
 };
 
+/**
+ * Trích xuất số tiền từ ảnh sử dụng OpenAI Vision API
+ * @param {Buffer} imageBuffer - Buffer chứa dữ liệu ảnh
+ * @param {string} caption - Caption của ảnh (nếu có)
+ * @returns {number|null} - Số tiền trích xuất được hoặc null nếu thất bại
+ */
+const extractAmountFromImage = async (imageBuffer, caption = '') => {
+  try {
+    // Chuyển đổi buffer ảnh thành base64
+    const base64Image = imageBuffer.toString('base64');
+    const base64Url = `data:image/jpeg;base64,${base64Image}`;
+    
+    // Chuẩn bị prompt để gửi đến OpenAI
+    let prompt = `Please extract any monetary amount/number from this image. Look for:
+- Payment amounts, transaction amounts, balances
+- Numbers with currency symbols (¥, $, €, ₫, etc.)
+- Banking transaction details
+- Receipt amounts
+- Any financial numbers
+
+Return ONLY the numeric value without currency symbols or formatting. If multiple amounts are found, return the main/primary amount.
+If no monetary amount is found, return "null".
+
+Examples:
+- If you see "¥12,500" return "12500"
+- If you see "$1,000.50" return "1000.50"  
+- If you see "Balance: 50,000 VND" return "50000"`;
+
+    // Nếu có caption, thêm vào prompt
+    if (caption && caption.trim()) {
+      prompt += `\n\nAdditional context from caption: "${caption.trim()}"`;
+    }
+    
+    // Tạo yêu cầu gửi đến OpenAI API
+    const openAiUrl = "https://api.openai.com/v1/chat/completions";
+    const requestBody = {
+      "model": "gpt-4o", // Sử dụng GPT-4 Vision
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {"type": "text", "text": prompt},
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": base64Url
+              }
+            }
+          ]
+        }
+      ],
+      "max_tokens": 100
+    };
+    
+    const options = {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+      }
+    };
+    
+    // Gửi yêu cầu đến OpenAI API
+    const response = await axios.post(openAiUrl, requestBody, options);
+    
+    // Kiểm tra phản hồi từ API
+    if (!response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
+      console.error('Invalid response from OpenAI API for amount extraction');
+      return null;
+    }
+    
+    // Phân tích kết quả từ OpenAI
+    const content = response.data.choices[0].message.content.trim();
+    
+    // Kiểm tra nếu OpenAI trả về "null" hoặc không tìm thấy
+    if (content.toLowerCase() === 'null' || content.toLowerCase().includes('no monetary amount')) {
+      return null;
+    }
+    
+    // Làm sạch và chuyển đổi thành số
+    const cleanAmount = content.replace(/[^0-9.]/g, '');
+    const amount = parseFloat(cleanAmount);
+    
+    if (isNaN(amount) || amount <= 0) {
+      return null;
+    }
+    
+    return amount;
+    
+  } catch (error) {
+    console.error('Error extracting amount from image:', error.message);
+    return null;
+  }
+};
+
 module.exports = {
-  extractBankInfoFromImage
+  extractBankInfoFromImage,
+  extractAmountFromImage
 }; 

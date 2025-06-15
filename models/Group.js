@@ -63,6 +63,20 @@ const GroupSchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     }
+  },
+  autoPatterns: {
+    type: [{
+      pattern: String,
+      enabled: {
+        type: Boolean,
+        default: true
+      },
+      dateAdded: {
+        type: Date,
+        default: Date.now
+      }
+    }],
+    default: []
   }
 }, { timestamps: true });
 

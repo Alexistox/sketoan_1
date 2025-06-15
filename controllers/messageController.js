@@ -9,7 +9,7 @@ const {
   isTrc20Address,
   formatTelegramMessage
 } = require('../utils/formatter');
-const { isUserOwner, isUserAdmin, isUserOperator, isBotAllowed } = require('../utils/permissions');
+const { isUserOwner, isUserAdmin, isUserOperator } = require('../utils/permissions');
 
 const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
@@ -50,7 +50,6 @@ const handleMessage = async (bot, msg, cache) => {
     const lastName = msg.from.last_name || '';
     const timestamp = new Date();
     const messageText = msg.text || '';
-    const isBot = msg.from.is_bot || false; // Kiểm tra xem tin nhắn có từ bot không
     
     // Nếu người dùng gửi '开始', chuyển thành '/st' để dùng chung logic
     if (messageText === '开始') {
@@ -87,8 +86,8 @@ const handleMessage = async (bot, msg, cache) => {
       return;
     }
     
-    // Kiểm tra và đăng ký người dùng mới (bao gồm cả bot)
-    await checkAndRegisterUser(userId, username, firstName, lastName, isBot);
+    // Kiểm tra và đăng ký người dùng mới
+    await checkAndRegisterUser(userId, username, firstName, lastName);
     
     // Xử lý tin nhắn tự động autoplus (trước khi xử lý các lệnh)
     // Chỉ xử lý nếu không phải là lệnh bắt đầu bằng / hoặc các lệnh tiếng Trung đặc biệt
@@ -410,6 +409,16 @@ const handleMessage = async (bot, msg, cache) => {
         return;
       }
       
+      if (messageText.startsWith('/auto')) {
+        // Kiểm tra quyền Operator
+        if (await isUserOperator(userId, chatId)) {
+          await handleAutoCommand(bot, msg);
+        } else {
+          bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
+        }
+        return;
+      }
+      
       if (messageText.startsWith('/d ')) {
         // Kiểm tra quyền Operator
         if (await isUserOperator(userId, chatId)) {
@@ -629,6 +638,26 @@ const handleMessage = async (bot, msg, cache) => {
       return;
     }
     
+    // Kiểm tra xử lý auto reply trước (khi reply với +, -, %)
+    if (msg.reply_to_message && messageText.match(/^[+\-%]$/)) {
+      // Kiểm tra quyền Operator
+      if (await isUserOperator(userId, chatId)) {
+        // Ưu tiên xử lý ảnh trước
+        if (msg.reply_to_message.photo) {
+          const processed = await processImageReply(bot, msg);
+          if (processed) {
+            return; // Đã xử lý bằng image reply
+          }
+        }
+        
+        // Nếu không phải ảnh hoặc không xử lý được ảnh, thử auto reply với text
+        const processed = await processAutoReply(bot, msg);
+        if (processed) {
+          return; // Đã xử lý bằng auto reply
+        }
+      }
+    }
+    
     // Xử lý tin nhắn + và -
     if (messageText.startsWith('+')) {
       // Kiểm tra quyền Operator
@@ -684,7 +713,7 @@ const handleMessage = async (bot, msg, cache) => {
 };
 
 // Hàm kiểm tra và đăng ký người dùng mới
-const checkAndRegisterUser = async (userId, username, firstName, lastName, isBot) => {
+const checkAndRegisterUser = async (userId, username, firstName, lastName) => {
   try {
     let user = await User.findOne({ userId: userId.toString() });
     
@@ -702,21 +731,14 @@ const checkAndRegisterUser = async (userId, username, firstName, lastName, isBot
         lastName,
         isOwner: isFirstUser,
         isAdmin: isFirstUser,
-        groupPermissions: [],
-        isBot: isBot || false
+        groupPermissions: []
       });
       
       await user.save();
       
       if (isFirstUser) {
         console.log(`User ${username} (ID: ${userId}) is now the bot owner and admin`);
-      } else if (isBot) {
-        console.log(`Bot ${username} (ID: ${userId}) has been registered`);
       }
-    } else if (isBot && !user.isBot) {
-      // Cập nhật isBot flag nếu user tồn tại nhưng chưa được đánh dấu là bot
-      user.isBot = true;
-      await user.save();
     }
     
     return user;
@@ -748,7 +770,10 @@ const {
   handlePercentCommand,
   handleSkipCommand,
   handleAutoPlusCommand,
-  processAutoPlusMessage
+  processAutoPlusMessage,
+  handleAutoCommand,
+  processAutoReply,
+  processImageReply
 } = require('./transactionCommands');
 
 const {

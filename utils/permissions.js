@@ -47,61 +47,12 @@ const isUserOperator = async (userId, chatId) => {
     // Kiểm tra trong danh sách operator của nhóm
     const group = await Group.findOne({ chatId: chatId.toString() });
     if (group && group.operators) {
-      const isOperator = group.operators.some(op => op.userId === userId.toString());
-      if (isOperator) {
-        return true;
-      }
-    }
-    
-    // Kiểm tra xem có phải bot và autoplus có được bật không
-    const user = await User.findOne({ userId: userId.toString() });
-    if (user && user.isBot && group && group.autoplus && group.autoplus.enabled) {
-      // Bot được tự động cấp quyền operator khi autoplus được bật
-      console.log(`Bot ${user.username} (ID: ${userId}) granted automatic operator permissions for autoplus in chat ${chatId}`);
-      return true;
+      return group.operators.some(op => op.userId === userId.toString());
     }
 
     return false;
   } catch (error) {
     console.error('Error in isUserOperator:', error);
-    return false;
-  }
-};
-
-/**
- * Kiểm tra xem bot có được phép thực hiện các thao tác nhất định không
- * @param {string} userId - ID bot cần kiểm tra
- * @param {string} chatId - ID của chat/nhóm
- * @param {string} operation - Loại thao tác (autoplus, transaction, etc.)
- * @returns {Promise<boolean>} - true nếu được phép, false nếu không
- */
-const isBotAllowed = async (userId, chatId, operation = 'general') => {
-  try {
-    const user = await User.findOne({ userId: userId.toString() });
-    
-    // Nếu không phải bot, áp dụng quy tắc bình thường
-    if (!user || !user.isBot) {
-      return false;
-    }
-    
-    const group = await Group.findOne({ chatId: chatId.toString() });
-    
-    switch (operation) {
-      case 'autoplus':
-        // Bot được phép autoplus nếu tính năng được bật
-        return group && group.autoplus && group.autoplus.enabled;
-      
-      case 'transaction':
-        // Bot được phép thực hiện giao dịch nếu autoplus được bật hoặc là operator
-        return (group && group.autoplus && group.autoplus.enabled) || 
-               (group && group.operators && group.operators.some(op => op.userId === userId.toString()));
-               
-      default:
-        // Mặc định cho phép bot thực hiện các thao tác cơ bản
-        return true;
-    }
-  } catch (error) {
-    console.error('Error in isBotAllowed:', error);
     return false;
   }
 };
@@ -149,6 +100,5 @@ module.exports = {
   isUserOwner,
   isUserAdmin,
   isUserOperator,
-  isBotAllowed,
   extractUserFromCommand
 }; 

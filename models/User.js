@@ -18,10 +18,6 @@ const UserSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  isBot: {
-    type: Boolean,
-    default: false
-  },
   allowedGroups: {
     type: [String],
     default: []
