@@ -49,6 +49,10 @@ app.post(`/bot${token}`, (req, res) => {
   res.sendStatus(200);
 });
 
+// Import report routes
+const reportRoutes = require('./routes/reportRoutes');
+app.use('/', reportRoutes);
+
 // Route trang chủ
 app.get('/', (req, res) => {
   res.send('Bot is running');

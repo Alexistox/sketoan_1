@@ -49,34 +49,6 @@ const GroupSchema = new mongoose.Schema({
       }
     }],
     default: []
-  },
-  autoplus: {
-    enabled: {
-      type: Boolean,
-      default: false
-    },
-    template: {
-      type: String,
-      default: ''
-    },
-    lastUpdated: {
-      type: Date,
-      default: Date.now
-    }
-  },
-  autoPatterns: {
-    type: [{
-      pattern: String,
-      enabled: {
-        type: Boolean,
-        default: true
-      },
-      dateAdded: {
-        type: Date,
-        default: Date.now
-      }
-    }],
-    default: []
   }
 }, { timestamps: true });
 

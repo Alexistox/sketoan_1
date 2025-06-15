@@ -30,8 +30,14 @@ const {
 
 const {
   handleImageBankInfo,
-  handleReplyImageBankInfo
+  handleReplyImageBankInfo,
+  handleTwelveCommand,
+  handleElevenCommand
 } = require('./imageCommands');
+
+const {
+  handleReport1Command
+} = require('./reportCommands');
 
 // Hàm xử lý tin nhắn chính
 const handleMessage = async (bot, msg, cache) => {
@@ -81,6 +87,28 @@ const handleMessage = async (bot, msg, cache) => {
       return;
     }
     
+    // Xử lý khi người dùng reply một tin nhắn có ảnh hoặc text với lệnh /12
+    if (msg.reply_to_message && (msg.reply_to_message.photo || msg.reply_to_message.text) && msg.text && msg.text === '/12') {
+      // Kiểm tra quyền Operator
+      if (await isUserOperator(userId, chatId)) {
+        await handleTwelveCommand(bot, msg);
+      } else {
+        bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
+      }
+      return;
+    }
+    
+    // Xử lý khi người dùng reply một tin nhắn có ảnh hoặc text với lệnh /11
+    if (msg.reply_to_message && (msg.reply_to_message.photo || msg.reply_to_message.text) && msg.text && msg.text === '/11') {
+      // Kiểm tra quyền Operator
+      if (await isUserOperator(userId, chatId)) {
+        await handleElevenCommand(bot, msg);
+      } else {
+        bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
+      }
+      return;
+    }
+    
     // Nếu không có văn bản, không xử lý
     if (!msg.text) {
       return;
@@ -88,33 +116,6 @@ const handleMessage = async (bot, msg, cache) => {
     
     // Kiểm tra và đăng ký người dùng mới
     await checkAndRegisterUser(userId, username, firstName, lastName);
-    
-    // Xử lý tin nhắn tự động autoplus (trước khi xử lý các lệnh)
-    // Chỉ xử lý nếu không phải là lệnh bắt đầu bằng / hoặc các lệnh tiếng Trung đặc biệt
-    if (!messageText.startsWith('/') && 
-        !messageText.startsWith('+') && 
-        !messageText.startsWith('-') &&
-        !messageText.startsWith('%') &&
-        !messageText.startsWith('设置') &&
-        !messageText.startsWith('下发') &&
-        !messageText.startsWith('撤回') &&
-        !messageText.startsWith('删除') &&
-        !messageText.startsWith('添加') &&
-        !messageText.startsWith('价格') &&
-        messageText !== '上课' &&
-        messageText !== 'Start' &&
-        messageText !== '开始新账单' &&
-        messageText !== '结束' &&
-        messageText !== '操作人' &&
-        messageText !== 'u来u来' &&
-        messageText !== '开始') {
-      
-      // Thử xử lý với autoplus
-      const processed = await processAutoPlusMessage(bot, msg);
-      if (processed) {
-        return; // Đã xử lý bằng autoplus, không cần xử lý thêm
-      }
-    }
     
     // Xử lý các lệnh tiếng Trung
     if (messageText === '上课' || messageText === 'Start' || messageText === '开始新账单') {
@@ -399,26 +400,6 @@ const handleMessage = async (bot, msg, cache) => {
         return;
       }
       
-      if (messageText.startsWith('/autoplus')) {
-        // Kiểm tra quyền Operator
-        if (await isUserOperator(userId, chatId)) {
-          await handleAutoPlusCommand(bot, msg);
-        } else {
-          bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
-        }
-        return;
-      }
-      
-      if (messageText.startsWith('/auto')) {
-        // Kiểm tra quyền Operator
-        if (await isUserOperator(userId, chatId)) {
-          await handleAutoCommand(bot, msg);
-        } else {
-          bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
-        }
-        return;
-      }
-      
       if (messageText.startsWith('/d ')) {
         // Kiểm tra quyền Operator
         if (await isUserOperator(userId, chatId)) {
@@ -522,6 +503,11 @@ const handleMessage = async (bot, msg, cache) => {
       
       if (messageText === '/report') {
         await handleReportCommand(bot, chatId, firstName, userId);
+        return;
+      }
+      
+      if (messageText === '/report1') {
+        await handleReport1Command(bot, msg);
         return;
       }
       
@@ -638,26 +624,6 @@ const handleMessage = async (bot, msg, cache) => {
       return;
     }
     
-    // Kiểm tra xử lý auto reply trước (khi reply với +, -, %)
-    if (msg.reply_to_message && messageText.match(/^[+\-%]$/)) {
-      // Kiểm tra quyền Operator
-      if (await isUserOperator(userId, chatId)) {
-        // Ưu tiên xử lý ảnh trước
-        if (msg.reply_to_message.photo) {
-          const processed = await processImageReply(bot, msg);
-          if (processed) {
-            return; // Đã xử lý bằng image reply
-          }
-        }
-        
-        // Nếu không phải ảnh hoặc không xử lý được ảnh, thử auto reply với text
-        const processed = await processAutoReply(bot, msg);
-        if (processed) {
-          return; // Đã xử lý bằng auto reply
-        }
-      }
-    }
-    
     // Xử lý tin nhắn + và -
     if (messageText.startsWith('+')) {
       // Kiểm tra quyền Operator
@@ -768,12 +734,7 @@ const {
   handlePlusCommand,
   handleMinusCommand,
   handlePercentCommand,
-  handleSkipCommand,
-  handleAutoPlusCommand,
-  processAutoPlusMessage,
-  handleAutoCommand,
-  processAutoReply,
-  processImageReply
+  handleSkipCommand
 } = require('./transactionCommands');
 
 const {
