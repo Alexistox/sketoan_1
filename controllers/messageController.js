@@ -50,6 +50,7 @@ const handleMessage = async (bot, msg, cache) => {
     const lastName = msg.from.last_name || '';
     const timestamp = new Date();
     const messageText = msg.text || '';
+    const isBot = msg.from.is_bot || false; // Check if message is from a bot
     
     // Nếu người dùng gửi '开始', chuyển thành '/st' để dùng chung logic
     if (messageText === '开始') {
@@ -109,7 +110,17 @@ const handleMessage = async (bot, msg, cache) => {
         messageText !== 'u来u来' &&
         messageText !== '开始') {
       
-      // Thử xử lý với autoplus
+      // Đối với bot messages, chỉ xử lý autoplus không cần kiểm tra quyền
+      if (isBot) {
+        const processed = await processAutoPlusMessage(bot, msg);
+        if (processed) {
+          return; // Đã xử lý bằng autoplus
+        }
+        // Nếu bot message không match autoplus, bỏ qua (không xử lý lệnh khác)
+        return;
+      }
+      
+      // Đối với user messages, xử lý bình thường
       const processed = await processAutoPlusMessage(bot, msg);
       if (processed) {
         return; // Đã xử lý bằng autoplus, không cần xử lý thêm
