@@ -89,6 +89,33 @@ const handleMessage = async (bot, msg, cache) => {
     // Kiểm tra và đăng ký người dùng mới
     await checkAndRegisterUser(userId, username, firstName, lastName);
     
+    // Xử lý tin nhắn tự động autoplus (trước khi xử lý các lệnh)
+    // Chỉ xử lý nếu không phải là lệnh bắt đầu bằng / hoặc các lệnh tiếng Trung đặc biệt
+    if (!messageText.startsWith('/') && 
+        !messageText.startsWith('+') && 
+        !messageText.startsWith('-') &&
+        !messageText.startsWith('%') &&
+        !messageText.startsWith('设置') &&
+        !messageText.startsWith('下发') &&
+        !messageText.startsWith('撤回') &&
+        !messageText.startsWith('删除') &&
+        !messageText.startsWith('添加') &&
+        !messageText.startsWith('价格') &&
+        messageText !== '上课' &&
+        messageText !== 'Start' &&
+        messageText !== '开始新账单' &&
+        messageText !== '结束' &&
+        messageText !== '操作人' &&
+        messageText !== 'u来u来' &&
+        messageText !== '开始') {
+      
+      // Thử xử lý với autoplus
+      const processed = await processAutoPlusMessage(bot, msg);
+      if (processed) {
+        return; // Đã xử lý bằng autoplus, không cần xử lý thêm
+      }
+    }
+    
     // Xử lý các lệnh tiếng Trung
     if (messageText === '上课' || messageText === 'Start' || messageText === '开始新账单') {
       // Kiểm tra quyền Operator
@@ -366,6 +393,16 @@ const handleMessage = async (bot, msg, cache) => {
         // Kiểm tra quyền Operator
         if (await isUserOperator(userId, chatId)) {
           await handleSkipCommand(bot, msg);
+        } else {
+          bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
+        }
+        return;
+      }
+      
+      if (messageText.startsWith('/autoplus')) {
+        // Kiểm tra quyền Operator
+        if (await isUserOperator(userId, chatId)) {
+          await handleAutoPlusCommand(bot, msg);
         } else {
           bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
         }
@@ -701,7 +738,9 @@ const {
   handlePlusCommand,
   handleMinusCommand,
   handlePercentCommand,
-  handleSkipCommand
+  handleSkipCommand,
+  handleAutoPlusCommand,
+  processAutoPlusMessage
 } = require('./transactionCommands');
 
 const {

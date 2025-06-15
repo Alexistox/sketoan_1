@@ -744,9 +744,207 @@ const handleSkipCommand = async (bot, msg) => {
   }
 };
 
+/**
+ * Xử lý lệnh /autoplus để cấu hình tự động trích xuất số tiền
+ */
+const handleAutoPlusCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const messageText = msg.text.trim();
+    const userId = msg.from.id;
+    
+    // Tìm group
+    let group = await Group.findOne({ chatId: chatId.toString() });
+    if (!group) {
+      bot.sendMessage(chatId, "请先设置汇率和费率！");
+      return;
+    }
+
+    // Phân tích lệnh
+    const parts = messageText.split(' ');
+    
+    if (parts.length === 1) {
+      // Chỉ gõ /autoplus - hiển thị trạng thái hiện tại
+      const status = group.autoplus?.enabled ? "已启用" : "已禁用";
+      const template = group.autoplus?.template || "未设置";
+      bot.sendMessage(chatId, 
+        `🤖 *自动加款状态*\n\n` +
+        `状态: ${status}\n` +
+        `模板: \`${template}\`\n\n` +
+        `*使用方法:*\n` +
+        `• \`/autoplus on [模板]\` - 启用并设置模板\n` +
+        `• \`/autoplus off\` - 禁用\n` +
+        `• \`/autoplus\` - 查看当前状态\n\n` +
+        `*模板示例:*\n` +
+        `\`/autoplus on 收到转账 {amount} 元\`\n` +
+        `模板中的 \`{amount}\` 将被替换为实际金额`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    const action = parts[1].toLowerCase();
+    
+    if (action === 'on') {
+      if (parts.length < 3) {
+        bot.sendMessage(chatId, "请提供模板！\n格式: `/autoplus on 模板文本`\n例如: `/autoplus on 收到转账 {amount} 元`", 
+          { parse_mode: 'Markdown' });
+        return;
+      }
+      
+      // Lấy template từ phần còn lại của message
+      const template = messageText.substring(messageText.indexOf(parts[2]));
+      
+      // Kiểm tra template có chứa {amount}
+      if (!template.includes('{amount}')) {
+        bot.sendMessage(chatId, "模板必须包含 `{amount}` 来标识金额位置！\n例如: `收到转账 {amount} 元`", 
+          { parse_mode: 'Markdown' });
+        return;
+      }
+      
+      // Cập nhật group
+      group.autoplus = group.autoplus || {};
+      group.autoplus.enabled = true;
+      group.autoplus.template = template;
+      group.autoplus.lastUpdated = new Date();
+      await group.save();
+      
+      bot.sendMessage(chatId, 
+        `✅ *自动加款已启用*\n\n` +
+        `模板: \`${template}\`\n\n` +
+        `现在当收到匹配此模板的消息时，机器人会自动提取金额并执行加款操作。`,
+        { parse_mode: 'Markdown' }
+      );
+      
+    } else if (action === 'off') {
+      // Tắt autoplus
+      group.autoplus = group.autoplus || {};
+      group.autoplus.enabled = false;
+      group.autoplus.lastUpdated = new Date();
+      await group.save();
+      
+      bot.sendMessage(chatId, "❌ 自动加款已禁用");
+      
+    } else {
+      bot.sendMessage(chatId, "无效的操作！\n使用 `/autoplus on [模板]` 或 `/autoplus off`", 
+        { parse_mode: 'Markdown' });
+    }
+    
+  } catch (error) {
+    console.error('Error in handleAutoPlusCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理自动加款命令时出错，请稍后重试。");
+  }
+};
+
+/**
+ * 从文本中提取金额，基于模板匹配
+ */
+const extractAmountFromText = (text, template) => {
+  try {
+    // Escape regex special characters in template except {amount} and {order_id}
+    let escapedTemplate = template.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // Replace {amount} with a regex pattern to capture numbers (including decimals and commas)
+    escapedTemplate = escapedTemplate.replace('\\{amount\\}', '([0-9,]+(?:\\.[0-9]+)?)');
+    
+    // Replace {order_id} with a regex pattern to capture alphanumeric characters (optional)
+    escapedTemplate = escapedTemplate.replace('\\{order_id\\}', '([a-zA-Z0-9]+)');
+    
+    // Make the template more flexible by allowing optional trailing parts
+    // If template ends with {order_id} or similar, make it optional
+    if (template.includes('{order_id}')) {
+      // The order_id part is optional for matching
+      escapedTemplate = escapedTemplate.replace('，订单号：\\([a-zA-Z0-9]+\\)', '(?:，订单号：[a-zA-Z0-9]+)?');
+    }
+    
+    // Create regex with global and case-insensitive flags
+    const regex = new RegExp(escapedTemplate, 'gi');
+    
+    // Try to match the pattern
+    const match = regex.exec(text);
+    
+    if (match && match[1]) {
+      // Clean the captured amount (remove commas, convert to number)
+      const cleanAmount = match[1].replace(/,/g, '');
+      const amount = parseFloat(cleanAmount);
+      
+      if (!isNaN(amount) && amount > 0) {
+        return amount;
+      }
+    }
+    
+    // Fallback: Try to extract amount using common Chinese payment patterns
+    const chinesePatterns = [
+      /金额[：:]\s*([0-9,]+(?:\.[0-9]+)?)/gi,
+      /金额\s*([0-9,]+(?:\.[0-9]+)?)/gi,
+      /收到\s*([0-9,]+(?:\.[0-9]+)?)\s*元/gi,
+      /转账\s*([0-9,]+(?:\.[0-9]+)?)\s*元/gi,
+      /支付\s*([0-9,]+(?:\.[0-9]+)?)\s*元/gi,
+      /收入\s*([0-9,]+(?:\.[0-9]+)?)/gi
+    ];
+    
+    for (const pattern of chinesePatterns) {
+      const fallbackMatch = pattern.exec(text);
+      if (fallbackMatch && fallbackMatch[1]) {
+        const cleanAmount = fallbackMatch[1].replace(/,/g, '');
+        const amount = parseFloat(cleanAmount);
+        
+        if (!isNaN(amount) && amount > 0) {
+          return amount;
+        }
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error extracting amount from text:', error);
+    return null;
+  }
+};
+
+/**
+ * Kiểm tra và xử lý tin nhắn tự động autoplus
+ */
+const processAutoPlusMessage = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const messageText = msg.text || '';
+    
+    // Tìm group và kiểm tra autoplus
+    const group = await Group.findOne({ chatId: chatId.toString() });
+    if (!group || !group.autoplus?.enabled || !group.autoplus?.template) {
+      return false; // Không xử lý
+    }
+    
+    // Trích xuất số tiền từ text
+    const amount = extractAmountFromText(messageText, group.autoplus.template);
+    
+    if (amount) {
+      // Tạo tin nhắn giả để sử dụng với handlePlusCommand
+      const fakeMsg = {
+        ...msg,
+        text: `+${amount}` // Tạo lệnh + với số tiền đã trích xuất
+      };
+      
+      // Gọi handlePlusCommand với tin nhắn giả
+      await handlePlusCommand(bot, fakeMsg);
+      
+      return true; // Đã xử lý
+    }
+    
+    return false; // Không khớp template
+  } catch (error) {
+    console.error('Error in processAutoPlusMessage:', error);
+    return false;
+  }
+};
+
 module.exports = {
   handlePlusCommand,
   handleMinusCommand,
   handlePercentCommand,
-  handleSkipCommand
+  handleSkipCommand,
+  handleAutoPlusCommand,
+  extractAmountFromText,
+  processAutoPlusMessage
 }; 

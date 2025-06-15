@@ -49,6 +49,20 @@ const GroupSchema = new mongoose.Schema({
       }
     }],
     default: []
+  },
+  autoplus: {
+    enabled: {
+      type: Boolean,
+      default: false
+    },
+    template: {
+      type: String,
+      default: ''
+    },
+    lastUpdated: {
+      type: Date,
+      default: Date.now
+    }
   }
 }, { timestamps: true });
 
