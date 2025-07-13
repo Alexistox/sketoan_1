@@ -49,6 +49,18 @@ const GroupSchema = new mongoose.Schema({
       }
     }],
     default: []
+  },
+  reportToken: {
+    type: String,
+    default: null
+  },
+  reportTokenExpiry: {
+    type: Date,
+    default: null
+  },
+  ownerId: {
+    type: String,
+    default: null
   }
 }, { timestamps: true });
 

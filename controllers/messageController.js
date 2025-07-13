@@ -32,7 +32,8 @@ const {
   handleImageBankInfo,
   handleReplyImageBankInfo,
   handleTwelveCommand,
-  handleElevenCommand
+  handleElevenCommand,
+  handleBankNotificationReply
 } = require('./imageCommands');
 
 const {
@@ -105,6 +106,17 @@ const handleMessage = async (bot, msg, cache) => {
         await handleElevenCommand(bot, msg);
       } else {
         bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
+      }
+      return;
+    }
+    
+    // Xử lý khi người dùng reply "1" vào tin nhắn thông báo ngân hàng
+    if (msg.reply_to_message && msg.reply_to_message.text && msg.text && msg.text === '1') {
+      // Kiểm tra quyền Operator
+      if (await isUserOperator(userId, chatId)) {
+        await handleBankNotificationReply(bot, msg);
+      } else {
+        bot.sendMessage(chatId,);
       }
       return;
     }
@@ -507,7 +519,12 @@ const handleMessage = async (bot, msg, cache) => {
       }
       
       if (messageText === '/report1') {
-        await handleReport1Command(bot, msg);
+        // Kiểm tra quyền Operator
+        if (await isUserOperator(userId, chatId)) {
+          await handleReport1Command(bot, msg);
+        } else {
+          bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
+        }
         return;
       }
       

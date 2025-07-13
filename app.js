@@ -49,7 +49,7 @@ app.post(`/bot${token}`, (req, res) => {
   res.sendStatus(200);
 });
 
-// Import report routes
+// Import và sử dụng report routes
 const reportRoutes = require('./routes/reportRoutes');
 app.use('/', reportRoutes);
 

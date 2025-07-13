@@ -83,6 +83,148 @@ const extractMoneyFromText = (text) => {
 };
 
 /**
+ * Trích xuất số tiền từ thông báo ngân hàng (ưu tiên "tiền vào" thay vì "số dư")
+ * @param {string} text - Text thông báo ngân hàng
+ * @returns {Number|null} - Số tiền trích xuất được hoặc null nếu thất bại
+ */
+const extractMoneyFromBankNotification = (text) => {
+  if (!text || typeof text !== 'string') {
+    return null;
+  }
+
+  const cleanText = text.trim();
+  const foundNumbers = [];
+
+  // Patterns ưu tiên cao cho "tiền vào/nhận" (tránh "số dư")
+  const highPriorityPatterns = [
+    // Tiền vào với dấu + (VN)
+    /(?:tiền vào|tiền nhận|tiền đến|nhận tiền|tiền chuyển đến|tiền chuyển vào|credited|received|deposit|income|incoming)\s*[:\-]?\s*\+?\s*(\d{1,3}(?:[,.]?\d{3})*(?:\.\d{1,2})?)\s*(?:đ|vnd|vnđ|usd|usdt|dollars?)/gi,
+    
+    // Format với dấu + đầu tin nhắn
+    /^\s*\+\s*(\d{1,3}(?:[,.]?\d{3})*(?:\.\d{1,2})?)\s*(?:đ|vnd|vnđ|usd|usdt|dollars?)/gi,
+    
+    // Tiền vào tiếng Trung
+    /(?:入账|收款|到账|转入|存入)\s*[:\-]?\s*\+?\s*(\d{1,3}(?:[,.]?\d{3})*(?:\.\d{1,2})?)\s*(?:元|人民币|rmb|usd|usdt)/gi,
+    
+    // Credit/Deposit trong tiếng Anh
+    /(?:credited with|received|deposit of|incoming)\s*[:\-]?\s*\$?\s*(\d{1,3}(?:[,.]?\d{3})*(?:\.\d{1,2})?)/gi
+  ];
+
+  // Tìm trong patterns ưu tiên cao trước
+  for (let i = 0; i < highPriorityPatterns.length; i++) {
+    const pattern = highPriorityPatterns[i];
+    const matches = cleanText.match(pattern);
+    
+    if (matches) {
+      for (const match of matches) {
+        const numberMatch = match.match(/(\d{1,3}(?:[,.]?\d{3})*(?:\.\d{1,2})?)/);
+        if (numberMatch) {
+          const numberStr = numberMatch[1];
+          let cleanNumber = numberStr.replace(/,/g, '');
+          
+          // Xử lý dấu chấm
+          const dotParts = cleanNumber.split('.');
+          if (dotParts.length > 1 && dotParts[dotParts.length - 1].length > 2) {
+            cleanNumber = cleanNumber.replace(/\./g, '');
+          }
+          
+          const num = parseFloat(cleanNumber);
+          if (!isNaN(num) && num > 0) {
+            foundNumbers.push({
+              value: num,
+              original: numberStr,
+              priority: i, // Ưu tiên cao nhất
+              isHighPriority: true
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Nếu tìm thấy trong patterns ưu tiên cao, trả về ngay
+  if (foundNumbers.length > 0) {
+    foundNumbers.sort((a, b) => {
+      if (a.priority !== b.priority) {
+        return a.priority - b.priority;
+      }
+      return b.value - a.value;
+    });
+    return foundNumbers[0].value;
+  }
+
+  // Nếu không tìm thấy, dùng patterns thông thường nhưng tránh "số dư"
+  const regularPatterns = [
+    // Số có đơn vị tiền tệ (loại bỏ context số dư)
+    /(\d{1,3}(?:[,.]?\d{3})*(?:\.\d{1,2})?)\s*(?:usdt|usd|vnd|vnđ|đ|dollars?|dollar|yuan|rmb|元)/gi,
+    
+    // Số có ký hiệu tiền tệ phía trước
+    /[đ$¥€£￥₩฿]\s*(\d{1,3}(?:[,.]?\d{3})*(?:\.\d{1,2})?)/gi,
+    
+    // Số có từ khóa tiền NHƯNG KHÔNG phải số dư
+    /(?:số tiền|amount|money|tiền|transfer|chuyển|payment|thanh toán|收款|金额|钱|转账|付款|支付|汇款)\s*[:\-：]?\s*(\d+(?:[,.]?\d{3})*(?:\.\d{1,2})?)/gi,
+    
+    // Số lớn có dấu phân cách
+    /(\d{1,3}(?:[,]\d{3}){2,}|\d{1,3}(?:[.]\d{3}){2,})/g
+  ];
+
+  // Tìm trong patterns thông thường
+  for (let i = 0; i < regularPatterns.length; i++) {
+    const pattern = regularPatterns[i];
+    const matches = cleanText.match(pattern);
+    
+    if (matches) {
+      for (const match of matches) {
+        // Kiểm tra xem context có phải là số dư không
+        const contextStart = Math.max(0, cleanText.indexOf(match) - 20);
+        const contextEnd = Math.min(cleanText.length, cleanText.indexOf(match) + match.length + 20);
+        const context = cleanText.substring(contextStart, contextEnd).toLowerCase();
+        
+        // Bỏ qua nếu context chứa từ khóa số dư
+        if (context.includes('số dư') || context.includes('balance') || context.includes('余额') || context.includes('available')) {
+          continue;
+        }
+        
+        const numberMatch = match.match(/(\d{1,3}(?:[,.]?\d{3})*(?:\.\d{1,2})?)/);
+        if (numberMatch) {
+          const numberStr = numberMatch[1];
+          let cleanNumber = numberStr.replace(/,/g, '');
+          
+          const dotParts = cleanNumber.split('.');
+          if (dotParts.length > 1 && dotParts[dotParts.length - 1].length > 2) {
+            cleanNumber = cleanNumber.replace(/\./g, '');
+          }
+          
+          const num = parseFloat(cleanNumber);
+          if (!isNaN(num) && num > 0) {
+            foundNumbers.push({
+              value: num,
+              original: numberStr,
+              priority: i + 100, // Ưu tiên thấp hơn
+              isHighPriority: false
+            });
+          }
+        }
+      }
+    }
+  }
+
+  if (foundNumbers.length === 0) {
+    return null;
+  }
+
+  // Sắp xếp theo độ ưu tiên
+  foundNumbers.sort((a, b) => {
+    if (a.priority !== b.priority) {
+      return a.priority - b.priority;
+    }
+    return b.value - a.value;
+  });
+
+  return foundNumbers[0].value;
+};
+
+/**
  * Kiểm tra xem text có chứa số tiền không
  * @param {string} text - Text cần kiểm tra
  * @returns {boolean} - True nếu có số tiền
@@ -93,5 +235,6 @@ const hasMoneyInText = (text) => {
 
 module.exports = {
   extractMoneyFromText,
+  extractMoneyFromBankNotification,
   hasMoneyInText
 }; 

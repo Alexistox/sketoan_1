@@ -1,544 +1,269 @@
 const express = require('express');
 const router = express.Router();
-const mongoose = require('mongoose');
-const { formatSmart, formatTimeString } = require('../utils/formatter');
-
-// Tạo kết nối riêng đến MongoDB online
-let onlineConnection = null;
-
-const connectToOnlineDB = async () => {
-  if (onlineConnection && onlineConnection.readyState === 1) {
-    return onlineConnection;
-  }
-  
-  const onlineMongoUri = process.env.MONGODB_ONLINE_URI || process.env.MONGODB_URI;
-  if (!onlineMongoUri) {
-    throw new Error('MONGODB_ONLINE_URI or MONGODB_URI environment variable not found');
-  }
-  
-  onlineConnection = await mongoose.createConnection(onlineMongoUri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
-  
-  console.log('Connected to online MongoDB for reports');
-  return onlineConnection;
-};
-
-// Định nghĩa schema cho online connection
-const getOnlineModels = (connection) => {
-  // Group Schema
-  const GroupSchema = new mongoose.Schema({
-    chatId: { type: String, required: true, unique: true },
-    totalVND: { type: Number, default: 0 },
-    totalUSDT: { type: Number, default: 0 },
-    usdtPaid: { type: Number, default: 0 },
-    remainingUSDT: { type: Number, default: 0 },
-    rate: { type: Number, default: 0 },
-    exchangeRate: { type: Number, default: 0 },
-    lastClearDate: { type: Date, default: Date.now }
-  }, { timestamps: true });
-
-  // Transaction Schema
-  const TransactionSchema = new mongoose.Schema({
-    chatId: { type: String, required: true },
-    type: { type: String, enum: ['deposit', 'withdraw', 'payment', 'setRate', 'setExchangeRate', 'clear', 'delete', 'skip'], required: true },
-    amount: { type: Number, default: 0 },
-    usdtAmount: { type: Number, default: 0 },
-    cardCode: { type: String, default: '' },
-    limit: { type: Number, default: 0 },
-    senderName: { type: String, required: true },
-    message: { type: String, default: '' },
-    details: { type: String, default: '' },
-    timestamp: { type: Date, default: Date.now },
-    rate: { type: Number, default: 0 },
-    exchangeRate: { type: Number, default: 0 },
-    messageId: { type: String, default: null },
-    skipped: { type: Boolean, default: false },
-    skipReason: { type: String, default: '' }
-  }, { timestamps: true });
-
-  // Card Schema
-  const CardSchema = new mongoose.Schema({
-    chatId: { type: String, required: true },
-    cardCode: { type: String, required: true },
-    total: { type: Number, default: 0 },
-    paid: { type: Number, default: 0 },
-    limit: { type: Number, default: 0 },
-    hidden: { type: Boolean, default: false },
-    lastUpdated: { type: Date, default: Date.now }
-  }, { timestamps: true });
-
-  // Config Schema
-  const ConfigSchema = new mongoose.Schema({
-    key: { type: String, required: true, unique: true },
-    value: { type: String, required: true },
-    description: { type: String, default: '' }
-  }, { timestamps: true });
-
-  return {
-    Group: connection.model('Group', GroupSchema),
-    Transaction: connection.model('Transaction', TransactionSchema),
-    Card: connection.model('Card', CardSchema),
-    Config: connection.model('Config', ConfigSchema)
-  };
-};
-
-// Hàm lấy format số đơn giản (không cần kết nối local)
-const getNumberFormat = (chatId) => {
-  // Default format - có thể customize sau
-  return {
-    thousands: ',',
-    decimal: '.'
-  };
-};
+const Transaction = require('../models/Transaction');
+const Group = require('../models/Group');
 
 /**
- * Route để hiển thị báo cáo giao dịch cho một nhóm cụ thể
- * GET /report/:chatId/:token
+ * GET /report/:chatId - Hiển thị báo cáo giao dịch của nhóm
  */
-router.get('/report/:chatId/:token', async (req, res) => {
+router.get('/report/:chatId', async (req, res) => {
   try {
-    const { chatId, token } = req.params;
-    
-    // Verify token (simple security measure)
-    const expectedToken = require('crypto')
-      .createHash('md5')
-      .update(`${chatId}_${process.env.TELEGRAM_BOT_TOKEN}`)
-      .digest('hex')
-      .substring(0, 16);
-    
-    if (token !== expectedToken) {
-      return res.status(403).send('<h1>Access Denied</h1><p>Invalid token</p>');
+    const { chatId } = req.params;
+    const { token } = req.query;
+
+    // Kiểm tra token
+    const group = await Group.findOne({ chatId });
+    if (!group || !group.reportToken || group.reportToken !== token) {
+      return res.status(403).send(`
+        <html>
+          <head><title>访问被拒绝</title></head>
+          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+            <h1>🚫 访问被拒绝</h1>
+            <p>无效的访问令牌或链接已过期</p>
+          </body>
+        </html>
+      `);
     }
-    
-    // Kết nối đến MongoDB online
-    const connection = await connectToOnlineDB();
-    const { Group, Transaction, Card, Config } = getOnlineModels(connection);
-    
-    // Tìm group từ online database
-    const group = await Group.findOne({ chatId: chatId.toString() });
-    if (!group) {
-      return res.status(404).send('<h1>Group Not Found</h1><p>No data available for this group</p>');
+
+    // Kiểm tra token expiry
+    if (group.reportTokenExpiry && new Date() > group.reportTokenExpiry) {
+      return res.status(403).send(`
+        <html>
+          <head><title>链接已过期</title></head>
+          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+            <h1>⏰ 链接已过期</h1>
+            <p>请重新生成报告链接</p>
+          </body>
+        </html>
+      `);
     }
-    
-    // Lấy đơn vị tiền tệ từ online database
-    const configCurrency = await Config.findOne({ key: `CURRENCY_UNIT_${chatId}` });
-    const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
-    
-    // Lấy format số của nhóm
-    const numberFormat = getNumberFormat(chatId);
-    
-    // Lấy thông tin giao dịch từ lần clear cuối
-    const lastClearDate = group.lastClearDate;
-    
-    // Lấy tất cả các giao dịch deposit/withdraw từ online database
-    const depositTransactions = await Transaction.find({
-      chatId: chatId.toString(),
-      type: { $in: ['deposit', 'withdraw'] },
-      timestamp: { $gt: lastClearDate },
-      skipped: { $ne: true }
-    }).sort({ timestamp: 1 });
-    
-    // Lấy tất cả các giao dịch payment từ online database
-    const paymentTransactions = await Transaction.find({
-      chatId: chatId.toString(),
-      type: 'payment',
-      timestamp: { $gt: lastClearDate },
-      skipped: { $ne: true }
-    }).sort({ timestamp: 1 });
-    
-    // Lấy thông tin thẻ từ online database
-    const cards = await Card.find({ 
-      chatId: chatId.toString(),
-      hidden: { $ne: true }
-    }).sort({ cardCode: 1 });
-    
-    // Format dữ liệu giao dịch deposit
-    const depositEntries = depositTransactions.map((t, index) => ({
-      id: index + 1,
-      details: t.details,
-      timestamp: t.timestamp,
-      senderName: t.senderName || '',
-      amount: t.amount || 0,
-      usdtAmount: t.usdtAmount || 0,
-      cardCode: t.cardCode || ''
-    }));
-    
-    // Format dữ liệu giao dịch payment
-    const paymentEntries = paymentTransactions.map((t, index) => ({
-      id: index + 1,
-      details: t.details,
-      timestamp: t.timestamp,
-      senderName: t.senderName || '',
-      usdtAmount: t.usdtAmount || 0,
-      cardCode: t.cardCode || ''
-    }));
-    
-    // Tính tổng
-    const totals = {
-      totalVND: group.totalVND || 0,
-      totalUSDT: group.totalUSDT || 0,
-      usdtPaid: group.usdtPaid || 0,
-      remainingUSDT: group.remainingUSDT || 0
-    };
-    
+
+    // Lấy tất cả giao dịch của nhóm (sắp xếp theo thời gian)
+    const transactions = await Transaction.find({ chatId })
+      .sort({ timestamp: -1 })
+      .lean();
+
     // Tạo HTML response
-    const html = generateReportHTML({
-      chatId,
-      group,
-      depositEntries,
-      paymentEntries,
-      cards,
-      totals,
-      currencyUnit,
-      numberFormat,
-      lastClearDate
-    });
-    
+    const html = generateReportHTML(transactions, chatId);
     res.send(html);
-    
+
   } catch (error) {
-    console.error('Error generating report:', error);
-    if (error.message.includes('MONGODB_ONLINE_URI')) {
-      res.status(500).send('<h1>Database Configuration Error</h1><p>MongoDB online connection not configured</p>');
-    } else {
-      res.status(500).send('<h1>Server Error</h1><p>Unable to generate report: ' + error.message + '</p>');
-    }
+    console.error('Error in report route:', error);
+    res.status(500).send(`
+      <html>
+        <head><title>服务器错误</title></head>
+        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+          <h1>❌ 服务器错误</h1>
+          <p>生成报告时出错，请重试</p>
+        </body>
+      </html>
+    `);
   }
 });
 
 /**
- * Tạo HTML cho báo cáo
+ * 生成HTML báo cáo
  */
-function generateReportHTML(data) {
-  const {
-    chatId,
-    group,
-    depositEntries,
-    paymentEntries,
-    cards,
-    totals,
-    currencyUnit,
-    numberFormat,
-    lastClearDate
-  } = data;
-  
+function generateReportHTML(transactions, chatId) {
+  const typeLabels = {
+    'deposit': '存款 (+)',
+    'withdraw': '提款 (-)',
+    'payment': '付款 (%)',
+    'setRate': '设置汇率',
+    'setExchangeRate': '设置兑换率',
+    'clear': '清零',
+    'delete': '删除',
+    'skip': '跳过'
+  };
+
+  const typeColors = {
+    'deposit': '#28a745',
+    'withdraw': '#dc3545',
+    'payment': '#ffc107',
+    'setRate': '#6f42c1',
+    'setExchangeRate': '#6f42c1',
+    'clear': '#6c757d',
+    'delete': '#dc3545',
+    'skip': '#17a2b8'
+  };
+
+  // Tính toán thống kê
+  const stats = {
+    total: transactions.length,
+    deposits: transactions.filter(t => t.type === 'deposit').length,
+    withdraws: transactions.filter(t => t.type === 'withdraw').length,
+    payments: transactions.filter(t => t.type === 'payment').length,
+    totalVND: transactions.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0),
+    totalUSDT: transactions.filter(t => t.type === 'payment').reduce((sum, t) => sum + t.usdtAmount, 0)
+  };
+
+  const transactionRows = transactions.map((tx, index) => `
+    <tr>
+      <td>${index + 1}</td>
+      <td><span class="type-badge" style="background-color: ${typeColors[tx.type] || '#6c757d'}">${typeLabels[tx.type] || tx.type}</span></td>
+      <td class="amount">${tx.amount ? tx.amount.toLocaleString() : '-'}</td>
+      <td class="amount">${tx.usdtAmount ? tx.usdtAmount.toLocaleString() : '-'}</td>
+      <td>${tx.senderName}</td>
+      <td class="timestamp">${new Date(tx.timestamp).toLocaleString('vi-VN')}</td>
+      <td class="message">${tx.message || '-'}</td>
+    </tr>
+  `).join('');
+
   return `
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>交易报告 - Group ${chatId}</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.6;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-            color: #333;
+    <!DOCTYPE html>
+    <html lang="zh-CN">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>交易报告 - 群组 ${chatId}</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          background-color: #f8f9fa;
+          color: #333;
+          line-height: 1.6;
         }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            overflow: hidden;
+        .container { 
+          max-width: 1200px; 
+          margin: 0 auto; 
+          padding: 20px;
         }
-        
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          padding: 30px 20px;
+          border-radius: 10px;
+          margin-bottom: 30px;
+          text-align: center;
         }
-        
-        .header h1 {
-            margin: 0;
-            font-size: 2.5em;
-            font-weight: 300;
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .header p { font-size: 1.2em; opacity: 0.9; }
+        .stats-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 20px;
+          margin-bottom: 30px;
         }
-        
-        .header p {
-            margin: 10px 0 0 0;
-            opacity: 0.9;
-            font-size: 1.1em;
+        .stat-card {
+          background: white;
+          padding: 20px;
+          border-radius: 10px;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+          text-align: center;
         }
-        
-        .summary {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            padding: 30px;
-            background: #f8f9fa;
+        .stat-number { font-size: 2em; font-weight: bold; color: #667eea; }
+        .stat-label { color: #666; margin-top: 5px; }
+        .table-container {
+          background: white;
+          border-radius: 10px;
+          overflow: hidden;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        
-        .summary-card {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            text-align: center;
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { 
+          background-color: #f8f9fa; 
+          font-weight: 600; 
+          color: #333;
+          position: sticky;
+          top: 0;
         }
-        
-        .summary-card h3 {
-            margin: 0 0 10px 0;
-            color: #666;
-            font-size: 0.9em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+        tr:hover { background-color: #f8f9fa; }
+        .type-badge {
+          padding: 4px 12px;
+          border-radius: 20px;
+          color: white;
+          font-size: 0.85em;
+          font-weight: 500;
         }
-        
-        .summary-card .value {
-            font-size: 1.8em;
-            font-weight: bold;
-            color: #333;
-            margin: 0;
+        .amount { 
+          font-weight: 600; 
+          font-family: monospace;
+          text-align: right;
         }
-        
-        .section {
-            margin: 0;
-            border-top: 1px solid #eee;
+        .timestamp { font-size: 0.9em; color: #666; }
+        .message { 
+          max-width: 200px; 
+          overflow: hidden; 
+          text-overflow: ellipsis; 
+          white-space: nowrap;
         }
-        
-        .section-header {
-            background: #f8f9fa;
-            padding: 20px 30px;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .section-header h2 {
-            margin: 0;
-            color: #333;
-            font-size: 1.5em;
-        }
-        
-        .transactions {
-            padding: 0;
-        }
-        
-        .transaction-item {
-            padding: 15px 30px;
-            border-bottom: 1px solid #f0f0f0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .transaction-item:last-child {
-            border-bottom: none;
-        }
-        
-        .transaction-item:hover {
-            background-color: #f8f9fa;
-        }
-        
-        .transaction-id {
-            background: #e9ecef;
-            color: #495057;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.8em;
-            font-weight: bold;
-            min-width: 30px;
-            text-align: center;
-            margin-right: 15px;
-        }
-        
-        .transaction-details {
-            flex: 1;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9em;
-            line-height: 1.4;
-        }
-        
-        .transaction-meta {
-            text-align: right;
-            font-size: 0.8em;
-            color: #666;
-            min-width: 120px;
-        }
-        
-        .card-section {
-            padding: 20px 30px;
-        }
-        
-        .card-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 15px;
-        }
-        
-        .card-item {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 6px;
-            border-left: 4px solid #007bff;
-        }
-        
-        .card-code {
-            font-weight: bold;
-            font-size: 1.1em;
-            margin-bottom: 8px;
-        }
-        
-        .card-details {
-            font-size: 0.9em;
-            color: #666;
-        }
-        
-        .no-data {
-            text-align: center;
-            padding: 40px;
-            color: #666;
-            font-style: italic;
-        }
-        
         .footer {
-            background: #f8f9fa;
-            padding: 20px 30px;
-            text-align: center;
-            color: #666;
-            font-size: 0.9em;
-            border-top: 1px solid #eee;
+          text-align: center;
+          margin-top: 30px;
+          padding: 20px;
+          color: #666;
+          font-size: 0.9em;
         }
-        
         @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-            
-            .header {
-                padding: 20px;
-            }
-            
-            .header h1 {
-                font-size: 2em;
-            }
-            
-            .summary {
-                padding: 20px;
-                gap: 15px;
-            }
-            
-            .transaction-item {
-                flex-direction: column;
-                align-items: flex-start;
-                padding: 20px;
-            }
-            
-            .transaction-meta {
-                margin-top: 10px;
-                text-align: left;
-            }
+          .container { padding: 10px; }
+          .header h1 { font-size: 2em; }
+          .stats-grid { grid-template-columns: repeat(2, 1fr); }
+          table { font-size: 0.85em; }
+          .message { max-width: 100px; }
         }
-    </style>
-</head>
-<body>
-    <div class="container">
+      </style>
+    </head>
+    <body>
+      <div class="container">
         <div class="header">
-            <h1>📊 交易报告</h1>
-            <p>Group ID: ${chatId} | 生成时间: ${new Date().toLocaleString('zh-CN')}</p>
+          <h1>📊 交易报告</h1>
+          <p>群组 ID: ${chatId} | 生成时间: ${new Date().toLocaleString('vi-VN')}</p>
         </div>
-        
-        <div class="summary">
-            <div class="summary-card">
-                <h3>总入款 (VND)</h3>
-                <p class="value">${formatSmart(totals.totalVND, numberFormat)}</p>
-            </div>
-            <div class="summary-card">
-                <h3>总${currencyUnit}</h3>
-                <p class="value">${formatSmart(totals.totalUSDT, numberFormat)}</p>
-            </div>
-            <div class="summary-card">
-                <h3>已下发</h3>
-                <p class="value">${formatSmart(totals.usdtPaid, numberFormat)}</p>
-            </div>
-            <div class="summary-card">
-                <h3>未下发</h3>
-                <p class="value">${formatSmart(totals.remainingUSDT, numberFormat)}</p>
-            </div>
-            <div class="summary-card">
-                <h3>费率</h3>
-                <p class="value">${group.rate || 0}%</p>
-            </div>
-            <div class="summary-card">
-                <h3>汇率</h3>
-                <p class="value">${formatSmart(group.exchangeRate || 0, numberFormat)}</p>
-            </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-number">${stats.total}</div>
+            <div class="stat-label">总交易数</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${stats.deposits}</div>
+            <div class="stat-label">存款次数</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${stats.withdraws}</div>
+            <div class="stat-label">提款次数</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${stats.payments}</div>
+            <div class="stat-label">付款次数</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${stats.totalVND.toLocaleString()}</div>
+            <div class="stat-label">总存款 (VND)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${stats.totalUSDT.toLocaleString()}</div>
+            <div class="stat-label">总付款 (USDT)</div>
+          </div>
         </div>
-        
-        <div class="section">
-            <div class="section-header">
-                <h2>💰 入款明细 (${depositEntries.length})</h2>
-            </div>
-            <div class="transactions">
-                ${depositEntries.length > 0 ? depositEntries.map(entry => `
-                    <div class="transaction-item">
-                        <span class="transaction-id">${entry.id}</span>
-                        <div class="transaction-details">${entry.details}</div>
-                        <div class="transaction-meta">
-                            <div>${entry.senderName}</div>
-                            <div>${new Date(entry.timestamp).toLocaleString('zh-CN')}</div>
-                        </div>
-                    </div>
-                `).join('') : '<div class="no-data">暂无入款记录</div>'}
-            </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>类型</th>
+                <th>金额 (VND)</th>
+                <th>金额 (USDT)</th>
+                <th>发送者</th>
+                <th>时间</th>
+                <th>消息</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${transactionRows}
+            </tbody>
+          </table>
         </div>
-        
-        <div class="section">
-            <div class="section-header">
-                <h2>📤 下发明细 (${paymentEntries.length})</h2>
-            </div>
-            <div class="transactions">
-                ${paymentEntries.length > 0 ? paymentEntries.map(entry => `
-                    <div class="transaction-item">
-                        <span class="transaction-id">!${entry.id}</span>
-                        <div class="transaction-details">${entry.details}</div>
-                        <div class="transaction-meta">
-                            <div>${entry.senderName}</div>
-                            <div>${new Date(entry.timestamp).toLocaleString('zh-CN')}</div>
-                        </div>
-                    </div>
-                `).join('') : '<div class="no-data">暂无下发记录</div>'}
-            </div>
-        </div>
-        
-        ${cards.length > 0 ? `
-        <div class="section">
-            <div class="section-header">
-                <h2>💳 卡片汇总 (${cards.length})</h2>
-            </div>
-            <div class="card-section">
-                <div class="card-grid">
-                    ${cards.map(card => `
-                        <div class="card-item">
-                            <div class="card-code">${card.cardCode}</div>
-                            <div class="card-details">
-                                总计: ${formatSmart(card.total, numberFormat)} VND<br>
-                                已付: ${formatSmart(card.paid, numberFormat)} ${currencyUnit}<br>
-                                ${card.limit > 0 ? `限额: ${formatSmart(card.limit, numberFormat)} VND<br>` : ''}
-                                更新: ${new Date(card.lastUpdated).toLocaleString('zh-CN')}
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        </div>
-        ` : ''}
-        
+
         <div class="footer">
-            <p>上次清零: ${lastClearDate ? new Date(lastClearDate).toLocaleString('zh-CN') : '从未清零'}</p>
-            <p>本报告由 Telegram Bot 自动生成 | 数据来源: MongoDB Online</p>
-            <p><small>Real-time data from online database</small></p>
+          <p>🤖 由 Telegram Bot 自动生成 | 此链接24小时内有效</p>
         </div>
-    </div>
-</body>
-</html>
+      </div>
+    </body>
+    </html>
   `;
 }
 
