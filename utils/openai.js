@@ -115,24 +115,27 @@ const extractMoneyAmountFromImage = async (imageBuffer) => {
     const base64Url = `data:image/jpeg;base64,${base64Image}`;
     
     // Chuẩn bị prompt để gửi đến OpenAI
-    const prompt = `Tìm và trích xuất số tiền từ hình ảnh này. Hãy tìm các số tiền có thể có trong ảnh (có thể là USDT, USD, VND, hoặc các đơn vị tiền tệ khác).
+    const prompt = `Hãy tìm và trích xuất số tiền từ hình ảnh này. Tôi cần bạn trích xuất SỐ TIỀN CHÍNH XÁC với TẤT CẢ CÁC CHỮ SỐ.
 
-ĐỊNH DẠNG SỐ ĐƯỢC HỖ TRỢ:
-- Định dạng Mỹ: 1,000,000 hoặc 1,000,000.50 (dấu phẩy phân cách hàng nghìn, dấu chấm phân cách thập phân)
-- Định dạng Châu Âu: 1.000.000 hoặc 1.000.000,50 (dấu chấm phân cách hàng nghìn, dấu phẩy phân cách thập phân)
-- Định dạng hỗn hợp: 2.500,75 hoặc 3,500.25 (dấu cuối cùng là thập phân)
-- Số đơn giản: 12345 hoặc 123.45
+🔍 TÌM KIẾM:
+- Tìm các từ khóa: "SỐ TIỀN", "AMOUNT", "TOTAL", "金额", "số tiền giao dịch"
+- Tìm số có nhiều chữ số với dấu phân cách (như 10,000,000 hoặc 1.000.000)
+- Ưu tiên số lớn nhất trong ảnh
 
-LOGIC XỬ LÝ: Nếu số có cả dấu chấm và phẩy, dấu xuất hiện SAU CÙNG là dấu thập phân.
+📝 ĐỊNH DẠNG HỖ TRỢ:
+- 10,000,000 VND → trả về '10000000'
+- 1.000.000 EUR → trả về '1000000'  
+- $2,500,000.50 → trả về '2500000.50'
+- 3.500.000,75 → trả về '3500000.75'
+- 500,000 đ → trả về '500000'
 
-Trả về CHÍNH XÁC chỉ một số (không có đơn vị, không có ký tự đặc biệt, chỉ số thập phân). Nếu có nhiều số tiền, hãy trả về số lớn nhất. Nếu không tìm thấy số tiền nào, trả về 'null'.
+⚠️ CHÚ Ý QUAN TRỌNG:
+- KHÔNG ĐƯỢC bỏ qua các số 0
+- PHẢI trích xuất TẤT CẢ chữ số, không rút gọn
+- Nếu thấy '10,000,000' thì trả về '10000000' (7 chữ số)
+- KHÔNG được trả về '10' khi thấy '10,000,000'
 
-VÍ DỤ:
-- '$1,000,000.50' → '1000000.5'
-- '€2.500.000,75' → '2500000.75'
-- '1.000 VND' → '1000'
-- '3.500,25 USD' → '3500.25'
-- '5,000.99 USDT' → '5000.99'`;
+🎯 XUẤT RA: Chỉ số thuần túy (không đơn vị, không ký tự đặc biệt). VD: '10000000' chứ không phải '10'`;
     
     // Tạo yêu cầu gửi đến OpenAI API
     const openAiUrl = "https://api.openai.com/v1/chat/completions";
