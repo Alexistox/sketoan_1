@@ -824,17 +824,30 @@ const handleSkipCommand = async (bot, msg) => {
       exchangeRate: formatRateValue(group.exchangeRate),
       totalAmount: formatSmart(group.totalVND),
       totalUSDT: formatSmart(group.totalUSDT),
+      totalDepositUSDT: formatSmart(group.totalDepositUSDT || 0),
+      totalDepositVND: formatSmart(group.totalDepositVND || 0),
+      totalWithdrawUSDT: formatSmart(group.totalWithdrawUSDT || 0),
+      totalWithdrawVND: formatSmart(group.totalWithdrawVND || 0),
       paidUSDT: formatSmart(group.usdtPaid),
       remainingUSDT: formatSmart(group.remainingUSDT),
       currencyUnit,
       cards: cardSummary
     };
     
+    // Kiểm tra nếu có withdraw rate để hiển thị thông tin đầy đủ
+    const hasWithdrawRate = group.withdrawRate !== null && group.withdrawExchangeRate !== null;
+    if (hasWithdrawRate) {
+      responseData.withdrawRate = formatRateValue(group.withdrawRate) + "%";
+      responseData.withdrawExchangeRate = formatRateValue(group.withdrawExchangeRate);
+    }
+    
     // Lấy format của người dùng
     const userFormat = await getGroupNumberFormat(chatId);
     
-    // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData, userFormat);
+    // Format và gửi tin nhắn - sử dụng formatter phù hợp
+    const response = hasWithdrawRate ? 
+      formatWithdrawRateMessage(responseData, userFormat) : 
+      formatTelegramMessage(responseData, userFormat);
     
     // Kiểm tra trạng thái hiển thị buttons
     const showButtons = await getButtonsStatus(chatId);
