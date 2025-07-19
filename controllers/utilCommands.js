@@ -3,7 +3,7 @@ const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const Config = require('../models/Config');
 const User = require('../models/User');
-const { formatSmart, formatRateValue, formatTelegramMessage, isTrc20Address, formatDateUS, getUserNumberFormat, getGroupNumberFormat } = require('../utils/formatter');
+const { formatSmart, formatRateValue, formatTelegramMessage, formatWithdrawRateMessage, parseSpecialNumber, evaluateSpecialExpression, isTrc20Address, formatDateUS, getUserNumberFormat, getGroupNumberFormat } = require('../utils/formatter');
 const { getDepositHistory, getPaymentHistory, getCardSummary } = require('./groupCommands');
 const { getButtonsStatus, getInlineKeyboard } = require('./userCommands');
 
@@ -23,7 +23,7 @@ const handleCalculateUsdtCommand = async (bot, msg) => {
     }
     
     // Lấy số tiền VND
-    const amount = parseFloat(parts[1].trim());
+    const amount = parseSpecialNumber(parts[1].trim());
     if (isNaN(amount)) {
       bot.sendMessage(chatId, "金额无效。");
       return;
@@ -76,7 +76,7 @@ const handleCalculateVndCommand = async (bot, msg) => {
     }
     
     // Lấy số tiền USDT
-    const amount = parseFloat(parts[1].trim());
+    const amount = parseSpecialNumber(parts[1].trim());
     if (isNaN(amount)) {
       bot.sendMessage(chatId, "金额无效。");
       return;
@@ -121,7 +121,10 @@ const handleMathExpression = async (bot, chatId, expression, senderName) => {
     // Tính toán kết quả
     let result;
     try {
-      result = eval(expression);
+      result = evaluateSpecialExpression(expression);
+      if (isNaN(result)) {
+        result = eval(expression); // fallback cho biểu thức thông thường
+      }
     } catch (error) {
       bot.sendMessage(chatId, "表达式无效，请重试。");
       return;
@@ -135,7 +138,7 @@ const handleMathExpression = async (bot, chatId, expression, senderName) => {
     // Gửi kết quả với format mặc định cho biểu thức toán học
     bot.sendMessage(
       chatId,
-      `🧮 ${expression} = ${formatSmart(result)}`
+      `${expression} = ${formatSmart(result)}`
     );
   } catch (error) {
     console.error('Error in handleMathExpression:', error);
@@ -237,17 +240,30 @@ const handleReportCommand = async (bot, chatId, senderName, userId = null) => {
       exchangeRate: formatRateValue(group.exchangeRate),
       totalAmount: formatSmart(group.totalVND),
       totalUSDT: formatSmart(group.totalUSDT),
+      totalDepositUSDT: formatSmart(group.totalDepositUSDT || 0),
+      totalDepositVND: formatSmart(group.totalDepositVND || 0),
+      totalWithdrawUSDT: formatSmart(group.totalWithdrawUSDT || 0),
+      totalWithdrawVND: formatSmart(group.totalWithdrawVND || 0),
       paidUSDT: formatSmart(group.usdtPaid),
       remainingUSDT: formatSmart(group.remainingUSDT),
       currencyUnit,
       cards: cardSummary
     };
     
+    // Kiểm tra nếu có withdraw rate để hiển thị thông tin đầy đủ
+    const hasWithdrawRate = group.withdrawRate !== null && group.withdrawExchangeRate !== null;
+    if (hasWithdrawRate) {
+      responseData.withdrawRate = formatRateValue(group.withdrawRate) + "%";
+      responseData.withdrawExchangeRate = formatRateValue(group.withdrawExchangeRate);
+    }
+    
     // Lấy format của người dùng nếu có userId
     const userFormat = userId ? await getGroupNumberFormat(chatId) : 'default';
     
-    // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData, userFormat);
+    // Format và gửi tin nhắn - sử dụng formatter phù hợp
+    const response = hasWithdrawRate ? 
+      formatWithdrawRateMessage(responseData, userFormat) : 
+      formatTelegramMessage(responseData, userFormat);
     
     // Kiểm tra trạng thái hiển thị buttons
     const showButtons = await getButtonsStatus(chatId);
@@ -289,6 +305,8 @@ const handleHelpCommand = async (bot, chatId) => {
 /t [金额] - VND转USDT (例: /t 1000000)
 /v [金额] - USDT转VND (例: /v 100)
 /d [费率]/[汇率] - 临时设置费率和汇率 (例: /d 2/14600)
+/d2 [出款费率]/[出款汇率] - 设置出款费率和汇率 (例: /d2 3/14800)
+/d2 off - 关闭出款汇率费率显示
 或者 价格 费率/汇率
 设置费率 [数值] - 设置费率 (例: 设置费率2)
 设置汇率 [数值] - 设置汇率 (例: 设置汇率14600)
@@ -406,6 +424,60 @@ const handleFormatCommand = async (bot, msg) => {
   }
 };
 
+/**
+ * Xử lý lệnh /pic on/off - bật/tắt chế độ trích xuất ảnh
+ */
+const handlePicCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const messageText = msg.text.trim();
+    
+    // Lấy tham số (on hoặc off)
+    const param = messageText.substring(4).trim().toLowerCase();
+    
+    if (param !== 'on' && param !== 'off') {
+      bot.sendMessage(chatId, "语法无效。使用: /pic on 或 /pic off");
+      return;
+    }
+    
+    // Lưu trạng thái vào Config
+    const configKey = `PIC_MODE_${chatId}`;
+    
+    if (param === 'on') {
+      await Config.findOneAndUpdate(
+        { key: configKey },
+        { key: configKey, value: 'true' },
+        { upsert: true, new: true }
+      );
+      bot.sendMessage(chatId, "✅ 已开启图片识别模式\n\n📋 使用方法：\n• 回复 \"1\" → 自动执行 + 命令\n• 回复 \"2\" → 自动执行 % 命令\n• 回复 \"3\" → 自动执行 - 命令\n\n💡 回复包含金额的图片或图片标题");
+    } else {
+      await Config.findOneAndUpdate(
+        { key: configKey },
+        { key: configKey, value: 'false' },
+        { upsert: true, new: true }
+      );
+      bot.sendMessage(chatId, "❌ 已关闭图片识别模式");
+    }
+    
+  } catch (error) {
+    console.error('Error in handlePicCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理图片模式命令时出错。请稍后再试。");
+  }
+};
+
+/**
+ * Kiểm tra xem chế độ pic có được bật không
+ */
+const isPicModeEnabled = async (chatId) => {
+  try {
+    const config = await Config.findOne({ key: `PIC_MODE_${chatId}` });
+    return config && config.value === 'true';
+  } catch (error) {
+    console.error('Error checking pic mode:', error);
+    return false;
+  }
+};
+
 module.exports = {
   handleCalculateUsdtCommand,
   handleCalculateVndCommand,
@@ -414,5 +486,7 @@ module.exports = {
   handleReportCommand,
   handleHelpCommand,
   handleStartCommand,
-  handleFormatCommand
+  handleFormatCommand,
+  handlePicCommand,
+  isPicModeEnabled
 }; 

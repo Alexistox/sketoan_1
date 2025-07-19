@@ -2,7 +2,7 @@ const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const Config = require('../models/Config');
-const { formatSmart, formatRateValue, formatTelegramMessage, isSingleNumber, formatDateUS, formatTimeString, getUserNumberFormat, getGroupNumberFormat } = require('../utils/formatter');
+const { formatSmart, formatRateValue, formatTelegramMessage, formatWithdrawRateMessage, isSingleNumber, isValidNumber, parseSpecialNumber, evaluateSpecialExpression, formatDateUS, formatTimeString, getUserNumberFormat, getGroupNumberFormat } = require('../utils/formatter');
 const { getDepositHistory, getPaymentHistory, getCardSummary } = require('./groupCommands');
 const { getButtonsStatus, getInlineKeyboard } = require('./userCommands');
 
@@ -27,19 +27,22 @@ const handlePlusCommand = async (bot, msg) => {
     const inputParts = parts[1].trim().split(' ');
     const expr = inputParts[0];
     const cardCode = inputParts.length > 1 ? inputParts[1].toUpperCase() : '';
-    const cardLimit = inputParts.length > 2 ? parseFloat(inputParts[2]) : 0;
+    const cardLimit = inputParts.length > 2 ? parseSpecialNumber(inputParts[2]) : 0;
     
     // Tính toán số tiền
     let amountVND;
-    if (!isSingleNumber(expr)) {
+    if (isValidNumber(expr)) {
+      amountVND = parseSpecialNumber(expr);
+    } else {
       try {
-        amountVND = eval(expr);
+        amountVND = evaluateSpecialExpression(expr);
+        if (isNaN(amountVND)) {
+          amountVND = eval(expr); // fallback cho biểu thức không có số đặc biệt
+        }
       } catch(err) {
         bot.sendMessage(chatId, "表达式无效，请重试。");
         return;
       }
-    } else {
-      amountVND = parseFloat(expr);
     }
     
     if (isNaN(amountVND)) {
@@ -82,14 +85,27 @@ const handlePlusCommand = async (bot, msg) => {
         exchangeRate: formatRateValue(group.exchangeRate),
         totalAmount: formatSmart(group.totalVND),
         totalUSDT: formatSmart(group.totalUSDT),
+        totalDepositUSDT: formatSmart(group.totalDepositUSDT || 0),
+        totalDepositVND: formatSmart(group.totalDepositVND || 0),
+        totalWithdrawUSDT: formatSmart(group.totalWithdrawUSDT || 0),
+        totalWithdrawVND: formatSmart(group.totalWithdrawVND || 0),
         paidUSDT: formatSmart(group.usdtPaid),
         remainingUSDT: formatSmart(group.remainingUSDT),
         currencyUnit,
         cards: cardSummary
       };
       
-      // Format và gửi tin nhắn
-      const response = formatTelegramMessage(responseData, userFormat);
+      // Kiểm tra nếu có withdraw rate để hiển thị thông tin đầy đủ
+      const hasWithdrawRate = group.withdrawRate !== null && group.withdrawExchangeRate !== null;
+      if (hasWithdrawRate) {
+        responseData.withdrawRate = formatRateValue(group.withdrawRate) + "%";
+        responseData.withdrawExchangeRate = formatRateValue(group.withdrawExchangeRate);
+      }
+      
+      // Format và gửi tin nhắn - sử dụng formatter phù hợp
+      const response = hasWithdrawRate ? 
+        formatWithdrawRateMessage(responseData, userFormat) : 
+        formatTelegramMessage(responseData, userFormat);
       
       // Kiểm tra trạng thái hiển thị buttons
       const showButtons = await getButtonsStatus(chatId);
@@ -114,7 +130,16 @@ const handlePlusCommand = async (bot, msg) => {
     // Cập nhật group
     group.totalVND += amountVND;
     group.totalUSDT += newUSDT;
-    group.remainingUSDT = group.totalUSDT - group.usdtPaid;
+    group.totalDepositUSDT += newUSDT; // Tracking riêng cho deposit USDT
+    group.totalDepositVND += amountVND; // Tracking riêng cho deposit VND
+    
+    // Tính lại remainingUSDT dựa trên logic mới
+    if (group.totalDepositUSDT !== undefined && group.totalWithdrawUSDT !== undefined) {
+      group.remainingUSDT = group.totalDepositUSDT - group.totalWithdrawUSDT - group.usdtPaid;
+    } else {
+      group.remainingUSDT = group.totalUSDT - group.usdtPaid;
+    }
+    
     await group.save();
     
     // Lấy format của người dùng cho hiển thị details
@@ -191,19 +216,32 @@ const handlePlusCommand = async (bot, msg) => {
       exchangeRate: formatRateValue(yValue),
       totalAmount: formatSmart(group.totalVND),
       totalUSDT: formatSmart(group.totalUSDT),
+      totalDepositUSDT: formatSmart(group.totalDepositUSDT || 0),
+      totalDepositVND: formatSmart(group.totalDepositVND || 0),
+      totalWithdrawUSDT: formatSmart(group.totalWithdrawUSDT || 0),
+      totalWithdrawVND: formatSmart(group.totalWithdrawVND || 0),
       paidUSDT: formatSmart(group.usdtPaid),
       remainingUSDT: formatSmart(group.remainingUSDT),
       currencyUnit,
       cards: cardSummary
     };
     
+    // Kiểm tra nếu có withdraw rate để hiển thị thông tin đầy đủ
+    const hasWithdrawRate = group.withdrawRate !== null && group.withdrawExchangeRate !== null;
+    if (hasWithdrawRate) {
+      responseData.withdrawRate = formatRateValue(group.withdrawRate) + "%";
+      responseData.withdrawExchangeRate = formatRateValue(group.withdrawExchangeRate);
+    }
+    
     // Thêm ví dụ nếu cần
     if (exampleValue !== null) {
       responseData.example = formatSmart(exampleValue);
     }
     
-    // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData, userFormat);
+    // Format và gửi tin nhắn - sử dụng formatter phù hợp
+    const response = hasWithdrawRate ? 
+      formatWithdrawRateMessage(responseData, userFormat) : 
+      formatTelegramMessage(responseData, userFormat);
     
     // Kiểm tra trạng thái hiển thị buttons
     const showButtons = await getButtonsStatus(chatId);
@@ -244,15 +282,18 @@ const handleMinusCommand = async (bot, msg) => {
     
     // Tính toán số tiền
     let amountVND;
-    if (!isSingleNumber(expr)) {
+    if (isValidNumber(expr)) {
+      amountVND = parseSpecialNumber(expr);
+    } else {
       try {
-        amountVND = eval(expr);
+        amountVND = evaluateSpecialExpression(expr);
+        if (isNaN(amountVND)) {
+          amountVND = eval(expr); // fallback cho biểu thức không có số đặc biệt
+        }
       } catch(err) {
         bot.sendMessage(chatId, "表达式无效，请重试。");
         return;
       }
-    } else {
-      amountVND = parseFloat(expr);
     }
     
     if (isNaN(amountVND)) {
@@ -274,18 +315,42 @@ const handleMinusCommand = async (bot, msg) => {
       return;
     }
     
-    // Tính toán giá trị USDT
-    const xValue = group.rate;
-    const yValue = group.exchangeRate;
-    const minusUSDT = (amountVND / yValue) * (1 - xValue / 100);
+    // Tính toán giá trị USDT - sử dụng 出款费率 và 出款汇率 nếu có
+    let xValue, yValue, minusUSDT, rateFactor;
+    let useWithdrawRate = false;
     
-    // Tính toán phần (1-(费率/100))
-    const rateFactor = (1 - xValue / 100).toFixed(2);
+    if (group.withdrawRate !== null && group.withdrawExchangeRate !== null) {
+      // Sử dụng 出款费率 và 出款汇率
+      xValue = group.withdrawRate;
+      yValue = group.withdrawExchangeRate;
+      minusUSDT = (amountVND / yValue) * (1 + xValue / 100);
+      rateFactor = (1 + xValue / 100).toFixed(2);
+      useWithdrawRate = true;
+    } else {
+      // Sử dụng 费率 và 汇率 cũ
+      xValue = group.rate;
+      yValue = group.exchangeRate;
+      minusUSDT = (amountVND / yValue) * (1 - xValue / 100);
+      rateFactor = (1 - xValue / 100).toFixed(2);
+    }
     
     // Cập nhật group
     group.totalVND -= amountVND;
     group.totalUSDT -= minusUSDT;
-    group.remainingUSDT = group.totalUSDT - group.usdtPaid;
+    
+    // Cập nhật totalWithdrawUSDT và totalWithdrawVND
+    if (useWithdrawRate) {
+      group.totalWithdrawUSDT += minusUSDT;
+    }
+    group.totalWithdrawVND += amountVND; // Tracking VND của lệnh trừ
+    
+    // Tính lại remainingUSDT dựa trên logic mới
+    if (group.totalDepositUSDT !== undefined && group.totalWithdrawUSDT !== undefined) {
+      group.remainingUSDT = group.totalDepositUSDT - group.totalWithdrawUSDT - group.usdtPaid;
+    } else {
+      group.remainingUSDT = group.totalUSDT - group.usdtPaid;
+    }
+    
     await group.save();
     
     // Lấy đơn vị tiền tệ
@@ -297,10 +362,11 @@ const handleMinusCommand = async (bot, msg) => {
     
     // Tạo chi tiết giao dịch
     let details;
+    const operator = useWithdrawRate ? '+' : '-';
     if (cardCode) {
-      details = `\`${formatTimeString(new Date())}\` -*${formatSmart(amountVND, userFormat)}*\\*${rateFactor}/${yValue} = -${formatSmart(minusUSDT, userFormat)} (${cardCode}) \`${senderName}\``;
+      details = `\`${formatTimeString(new Date())}\` -*${formatSmart(amountVND, userFormat)}*\\*${rateFactor}/${yValue} = ${formatSmart(minusUSDT, userFormat)} (${cardCode}) \`${senderName}\``;
     } else {
-      details = `\`${formatTimeString(new Date())}\` -*${formatSmart(amountVND, userFormat)}*\\*${rateFactor}/${yValue} = -${formatSmart(minusUSDT, userFormat)} \`${senderName}\``;
+      details = `\`${formatTimeString(new Date())}\` -*${formatSmart(amountVND, userFormat)}*\\*${rateFactor}/${yValue} = ${formatSmart(minusUSDT, userFormat)} \`${senderName}\``;
     }
     // Lưu giao dịch mới
     const transaction = new Transaction({
@@ -344,7 +410,11 @@ const handleMinusCommand = async (bot, msg) => {
     // Tính toán giá trị ví dụ
     let exampleValue = null;
     if (Math.abs(amountVND) < 1) {
-      exampleValue = (100000 / yValue) * (1 - xValue / 100);
+      if (useWithdrawRate) {
+        exampleValue = (100000 / yValue) * (1 + xValue / 100);
+      } else {
+        exampleValue = (100000 / yValue) * (1 - xValue / 100);
+      }
     }
     
     // Lấy thông tin giao dịch gần đây
@@ -358,23 +428,42 @@ const handleMinusCommand = async (bot, msg) => {
       date: formatDateUS(todayDate),
       depositData,
       paymentData,
-      rate: formatRateValue(xValue) + "%",
-      exchangeRate: formatRateValue(yValue),
       totalAmount: formatSmart(group.totalVND),
       totalUSDT: formatSmart(group.totalUSDT),
+      totalDepositUSDT: formatSmart(group.totalDepositUSDT || 0),
+      totalDepositVND: formatSmart(group.totalDepositVND || 0),
+      totalWithdrawUSDT: formatSmart(group.totalWithdrawUSDT || 0),
+      totalWithdrawVND: formatSmart(group.totalWithdrawVND || 0),
       paidUSDT: formatSmart(group.usdtPaid),
       remainingUSDT: formatSmart(group.remainingUSDT),
       currencyUnit,
       cards: cardSummary
     };
     
-    // Thêm ví dụ nếu cần
-    if (exampleValue !== null) {
-      responseData.example = formatSmart(exampleValue);
+    // Thêm thông tin rate phù hợp
+    if (useWithdrawRate) {
+      responseData.rate = (group.rate !== null && group.rate !== undefined) ? formatRateValue(group.rate) + "%" : "未设置";
+      responseData.exchangeRate = (group.exchangeRate !== null && group.exchangeRate !== undefined) ? formatRateValue(group.exchangeRate) : "未设置";
+      responseData.withdrawRate = formatRateValue(xValue) + "%";
+      responseData.withdrawExchangeRate = formatRateValue(yValue);
+    } else {
+      responseData.rate = formatRateValue(xValue) + "%";
+      responseData.exchangeRate = formatRateValue(yValue);
     }
     
-    // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData, userFormat);
+    // Thêm ví dụ nếu cần
+    if (exampleValue !== null) {
+      if (useWithdrawRate) {
+        responseData.withdrawExample = formatSmart(exampleValue);
+      } else {
+        responseData.example = formatSmart(exampleValue);
+      }
+    }
+    
+    // Format và gửi tin nhắn - sử dụng formatter phù hợp
+    const response = useWithdrawRate ? 
+      formatWithdrawRateMessage(responseData, userFormat) : 
+      formatTelegramMessage(responseData, userFormat);
     
     // Kiểm tra trạng thái hiển thị buttons
     const showButtons = await getButtonsStatus(chatId);
@@ -424,15 +513,18 @@ const handlePercentCommand = async (bot, msg) => {
     
     // Tính toán số tiền USDT
     let payUSDT;
-    if (!isSingleNumber(expr)) {
+    if (isValidNumber(expr)) {
+      payUSDT = parseSpecialNumber(expr);
+    } else {
       try {
-        payUSDT = eval(expr);
+        payUSDT = evaluateSpecialExpression(expr);
+        if (isNaN(payUSDT)) {
+          payUSDT = eval(expr); // fallback cho biểu thức không có số đặc biệt
+        }
       } catch(err) {
         bot.sendMessage(chatId, "表达式无效，请重试。");
         return;
       }
-    } else {
-      payUSDT = parseFloat(expr);
     }
     
     if (isNaN(payUSDT)) {
@@ -465,7 +557,14 @@ const handlePercentCommand = async (bot, msg) => {
     
     // Cập nhật group
     group.usdtPaid += payUSDT;
-    group.remainingUSDT = group.totalUSDT - group.usdtPaid;
+    
+    // Tính lại remainingUSDT dựa trên logic mới
+    if (group.totalDepositUSDT !== undefined && group.totalWithdrawUSDT !== undefined) {
+      group.remainingUSDT = group.totalDepositUSDT - group.totalWithdrawUSDT - group.usdtPaid;
+    } else {
+      group.remainingUSDT = group.totalUSDT - group.usdtPaid;
+    }
+    
     await group.save();
     
     // Lấy format của người dùng cho hiển thị details  
@@ -531,19 +630,32 @@ const handlePercentCommand = async (bot, msg) => {
       exchangeRate: formatRateValue(group.exchangeRate),
       totalAmount: formatSmart(group.totalVND),
       totalUSDT: formatSmart(group.totalUSDT),
+      totalDepositUSDT: formatSmart(group.totalDepositUSDT || 0),
+      totalDepositVND: formatSmart(group.totalDepositVND || 0),
+      totalWithdrawUSDT: formatSmart(group.totalWithdrawUSDT || 0),
+      totalWithdrawVND: formatSmart(group.totalWithdrawVND || 0),
       paidUSDT: formatSmart(group.usdtPaid),
       remainingUSDT: formatSmart(group.remainingUSDT),
       currencyUnit,
       cards: cardSummary
     };
     
+    // Kiểm tra nếu có withdraw rate để hiển thị thông tin đầy đủ
+    const hasWithdrawRate = group.withdrawRate !== null && group.withdrawExchangeRate !== null;
+    if (hasWithdrawRate) {
+      responseData.withdrawRate = formatRateValue(group.withdrawRate) + "%";
+      responseData.withdrawExchangeRate = formatRateValue(group.withdrawExchangeRate);
+    }
+    
     // Thêm ví dụ nếu cần
     if (exampleValue !== null) {
       responseData.example = formatSmart(exampleValue);
     }
     
-    // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData, userFormat);
+    // Format và gửi tin nhắn - sử dụng formatter phù hợp
+    const response = hasWithdrawRate ? 
+      formatWithdrawRateMessage(responseData, userFormat) : 
+      formatTelegramMessage(responseData, userFormat);
     
     // Kiểm tra trạng thái hiển thị buttons
     const showButtons = await getButtonsStatus(chatId);

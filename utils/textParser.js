@@ -1,3 +1,5 @@
+const { parseSpecialNumber } = require('./formatter');
+
 /**
  * Trích xuất số tiền từ text
  * @param {string} text - Text cần phân tích
@@ -11,22 +13,22 @@ const extractMoneyFromText = (text) => {
   // Loại bỏ các ký tự không cần thiết và chuẩn hóa text
   const cleanText = text.trim();
   
-  // Các pattern để tìm số tiền (hỗ trợ đa ngôn ngữ)
+  // Các pattern để tìm số tiền (hỗ trợ đa định dạng số)
   const patterns = [
-    // Số có đơn vị tiền tệ (mở rộng nhiều ngôn ngữ)
-    /(\d{1,3}(?:[,.]?\d{3})*(?:\.\d{1,2})?)\s*(?:usdt|usd|vnd|vnđ|đ|dollars?|dollar|bucks|us\$|us dollars|元|人民币|rmb|원|won|円|yen|บาท|baht|aud|au\$|krw|jpy|thb)/gi,
+    // Số có đơn vị tiền tệ (hỗ trợ định dạng Châu Âu và Mỹ)
+    /(\d{1,3}(?:[,.]?\d{3})*(?:[,.]?\d{1,2})?)\s*(?:usdt|usd|vnd|vnđ|đ|dollars?|dollar|bucks|us\$|us dollars|元|人民币|rmb|원|won|円|yen|บาท|baht|aud|au\$|krw|jpy|thb)/gi,
     
-    // Số có ký hiệu tiền tệ phía trước (mở rộng)
-    /[đ$¥€£￥₩฿]\s*(\d{1,3}(?:[,.]?\d{3})*(?:\.\d{1,2})?)/gi,
+    // Số có ký hiệu tiền tệ phía trước (hỗ trợ định dạng Châu Âu và Mỹ)
+    /[đ$¥€£￥₩฿]\s*(\d{1,3}(?:[,.]?\d{3})*(?:[,.]?\d{1,2})?)/gi,
     
-    // Số có từ khóa liên quan đến tiền (đa ngôn ngữ: Việt, Anh, Trung, Thái, Hàn, Nhật)
-    /(?:số tiền|amount|money|tiền|total|tổng|transfer|chuyển|payment|thanh toán|收款|余额|balance|金额|钱|转账|付款|总计|金钱|支付|汇款|เงิน|โอน|จ่าย|รับ|ยอดเงิน|ชำระ|돈|송금|지불|수령|잔액|금액|お金|送金|支払い|受取|残高)\s*[:\-：]?\s*(\d+(?:[,.]?\d{3})*(?:\.\d{1,2})?)/gi,
+    // Số có từ khóa liên quan đến tiền (hỗ trợ định dạng Châu Âu và Mỹ)
+    /(?:số tiền|amount|money|tiền|total|tổng|transfer|chuyển|payment|thanh toán|收款|余额|balance|金额|钱|转账|付款|总计|金钱|支付|汇款|เงิน|โอน|จ่าย|รับ|ยอดเงิน|ชำระ|돈|송금|지불|수령|잔액|금액|お金|送金|支払い|受取|残高)\s*[:\-：]?\s*(\d+(?:[,.]?\d{3})*(?:[,.]?\d{1,2})?)/gi,
     
-    // Số lớn có dấu phân cách (ví dụ: 1,000,000 hoặc 1.000.000)
-    /(\d{1,3}(?:[,]\d{3}){2,}|\d{1,3}(?:[.]\d{3}){2,})/g,
+    // Số lớn có dấu phân cách (định dạng Mỹ: 1,000,000 hoặc Châu Âu: 1.000.000)
+    /(\d{1,3}(?:[,]\d{3}){2,}(?:\.\d{1,2})?|\d{1,3}(?:[.]\d{3}){2,}(?:,\d{1,2})?)/g,
     
-    // Các số đơn giản lớn (ít nhất 3 chữ số)
-    /\b(\d{3,}(?:\.\d{1,2})?)\b/g
+    // Các số đơn giản lớn (ít nhất 3 chữ số, hỗ trợ cả dấu chấm và phẩy thập phân)
+    /\b(\d{3,}(?:[,.]?\d{1,2})?)\b/g
   ];
 
   const foundNumbers = [];
@@ -39,21 +41,12 @@ const extractMoneyFromText = (text) => {
     if (matches) {
       for (const match of matches) {
         // Trích xuất số từ match
-        const numberMatch = match.match(/(\d+(?:[,.]?\d{3})*(?:\.\d{1,2})?)/);
+        const numberMatch = match.match(/(\d+(?:[,.]?\d{3})*(?:[,.]?\d{1,2})?)/);
         if (numberMatch) {
           const numberStr = numberMatch[1];
           
-          // Chuẩn hóa số (loại bỏ dấu phẩy, xử lý dấu chấm)
-          let cleanNumber = numberStr.replace(/,/g, '');
-          
-          // Xử lý trường hợp dấu chấm là phân cách hàng nghìn (châu Âu)
-          // Nếu có nhiều hơn 2 chữ số sau dấu chấm cuối cùng thì đó là phân cách hàng nghìn
-          const dotParts = cleanNumber.split('.');
-          if (dotParts.length > 1 && dotParts[dotParts.length - 1].length > 2) {
-            cleanNumber = cleanNumber.replace(/\./g, '');
-          }
-          
-          const num = parseFloat(cleanNumber);
+          // Sử dụng function parseSpecialNumber để xử lý tất cả định dạng số
+          const num = parseSpecialNumber(numberStr);
           if (!isNaN(num) && num > 0) {
             foundNumbers.push({
               value: num,
@@ -120,15 +113,9 @@ const extractMoneyFromBankNotification = (text) => {
         const numberMatch = match.match(/(\d{1,3}(?:[,.]?\d{3})*(?:\.\d{1,2})?)/);
         if (numberMatch) {
           const numberStr = numberMatch[1];
-          let cleanNumber = numberStr.replace(/,/g, '');
           
-          // Xử lý dấu chấm
-          const dotParts = cleanNumber.split('.');
-          if (dotParts.length > 1 && dotParts[dotParts.length - 1].length > 2) {
-            cleanNumber = cleanNumber.replace(/\./g, '');
-          }
-          
-          const num = parseFloat(cleanNumber);
+          // Sử dụng function parseSpecialNumber để xử lý tất cả định dạng số
+          const num = parseSpecialNumber(numberStr);
           if (!isNaN(num) && num > 0) {
             foundNumbers.push({
               value: num,
@@ -185,17 +172,12 @@ const extractMoneyFromBankNotification = (text) => {
           continue;
         }
         
-        const numberMatch = match.match(/(\d{1,3}(?:[,.]?\d{3})*(?:\.\d{1,2})?)/);
+        const numberMatch = match.match(/(\d{1,3}(?:[,.]?\d{3})*(?:[,.]?\d{1,2})?)/);
         if (numberMatch) {
           const numberStr = numberMatch[1];
-          let cleanNumber = numberStr.replace(/,/g, '');
           
-          const dotParts = cleanNumber.split('.');
-          if (dotParts.length > 1 && dotParts[dotParts.length - 1].length > 2) {
-            cleanNumber = cleanNumber.replace(/\./g, '');
-          }
-          
-          const num = parseFloat(cleanNumber);
+          // Sử dụng function parseSpecialNumber để xử lý tất cả định dạng số
+          const num = parseSpecialNumber(numberStr);
           if (!isNaN(num) && num > 0) {
             foundNumbers.push({
               value: num,

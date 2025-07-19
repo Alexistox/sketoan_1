@@ -104,7 +104,7 @@ const extractBankInfoFromImage = async (imageBuffer) => {
 };
 
 /**
- * Trích xuất số tiền từ ảnh sử dụng OpenAI API (cho lệnh /12)
+ * Trích xuất số tiền từ ảnh sử dụng OpenAI API
  * @param {Buffer} imageBuffer - Buffer chứa dữ liệu ảnh
  * @returns {Number|null} - Số tiền trích xuất được hoặc null nếu thất bại
  */
@@ -115,7 +115,24 @@ const extractMoneyAmountFromImage = async (imageBuffer) => {
     const base64Url = `data:image/jpeg;base64,${base64Image}`;
     
     // Chuẩn bị prompt để gửi đến OpenAI
-    const prompt = "Tìm và trích xuất số tiền từ hình ảnh này. Hãy tìm các số tiền có thể có trong ảnh (có thể là USDT, USD, VND, hoặc các đơn vị tiền tệ khác). Trả về CHÍNH XÁC chỉ một số (không có đơn vị, không có ký tự đặc biệt, chỉ số thập phân). Nếu có nhiều số tiền, hãy trả về số lớn nhất. Nếu không tìm thấy số tiền nào, trả về 'null'. Ví dụ: nếu thấy '$100.50' thì chỉ trả về '100.5', nếu thấy '1,000 USDT' thì chỉ trả về '1000'.";
+    const prompt = `Tìm và trích xuất số tiền từ hình ảnh này. Hãy tìm các số tiền có thể có trong ảnh (có thể là USDT, USD, VND, hoặc các đơn vị tiền tệ khác).
+
+ĐỊNH DẠNG SỐ ĐƯỢC HỖ TRỢ:
+- Định dạng Mỹ: 1,000,000 hoặc 1,000,000.50 (dấu phẩy phân cách hàng nghìn, dấu chấm phân cách thập phân)
+- Định dạng Châu Âu: 1.000.000 hoặc 1.000.000,50 (dấu chấm phân cách hàng nghìn, dấu phẩy phân cách thập phân)
+- Định dạng hỗn hợp: 2.500,75 hoặc 3,500.25 (dấu cuối cùng là thập phân)
+- Số đơn giản: 12345 hoặc 123.45
+
+LOGIC XỬ LÝ: Nếu số có cả dấu chấm và phẩy, dấu xuất hiện SAU CÙNG là dấu thập phân.
+
+Trả về CHÍNH XÁC chỉ một số (không có đơn vị, không có ký tự đặc biệt, chỉ số thập phân). Nếu có nhiều số tiền, hãy trả về số lớn nhất. Nếu không tìm thấy số tiền nào, trả về 'null'.
+
+VÍ DỤ:
+- '$1,000,000.50' → '1000000.5'
+- '€2.500.000,75' → '2500000.75'
+- '1.000 VND' → '1000'
+- '3.500,25 USD' → '3500.25'
+- '5,000.99 USDT' → '5000.99'`;
     
     // Tạo yêu cầu gửi đến OpenAI API
     const openAiUrl = "https://api.openai.com/v1/chat/completions";
@@ -162,16 +179,19 @@ const extractMoneyAmountFromImage = async (imageBuffer) => {
       return null;
     }
     
+    // Import function để xử lý định dạng số
+    const { parseSpecialNumber } = require('./formatter');
+    
     // Trích xuất số từ phản hồi
-    const numberMatch = content.match(/[\d,]+\.?\d*/);
+    const numberMatch = content.match(/[\d,.]+/);
     if (numberMatch) {
-      const numberStr = numberMatch[0].replace(/,/g, ''); // Loại bỏ dấu phẩy
-      const amount = parseFloat(numberStr);
+      const numberStr = numberMatch[0];
+      const amount = parseSpecialNumber(numberStr);
       return isNaN(amount) ? null : amount;
     }
     
     // Thử parse trực tiếp content như một số
-    const directAmount = parseFloat(content.replace(/,/g, ''));
+    const directAmount = parseSpecialNumber(content);
     return isNaN(directAmount) ? null : directAmount;
     
   } catch (error) {

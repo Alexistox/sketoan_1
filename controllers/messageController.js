@@ -25,15 +25,16 @@ const {
   handleReportCommand,
   handleHelpCommand,
   handleStartCommand,
-  handleFormatCommand
+  handleFormatCommand,
+  handlePicCommand,
+  isPicModeEnabled
 } = require('./utilCommands');
 
 const {
   handleImageBankInfo,
   handleReplyImageBankInfo,
-  handleTwelveCommand,
-  handleElevenCommand,
-  handleBankNotificationReply
+  handleBankNotificationReply,
+  handlePicModeReply
 } = require('./imageCommands');
 
 const {
@@ -88,37 +89,30 @@ const handleMessage = async (bot, msg, cache) => {
       return;
     }
     
-    // Xử lý khi người dùng reply một tin nhắn có ảnh hoặc text với lệnh /12
-    if (msg.reply_to_message && (msg.reply_to_message.photo || msg.reply_to_message.text) && msg.text && msg.text === '/12') {
-      // Kiểm tra quyền Operator
-      if (await isUserOperator(userId, chatId)) {
-        await handleTwelveCommand(bot, msg);
-      } else {
-        bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
-      }
-      return;
-    }
-    
-    // Xử lý khi người dùng reply một tin nhắn có ảnh hoặc text với lệnh /11
-    if (msg.reply_to_message && (msg.reply_to_message.photo || msg.reply_to_message.text) && msg.text && msg.text === '/11') {
-      // Kiểm tra quyền Operator
-      if (await isUserOperator(userId, chatId)) {
-        await handleElevenCommand(bot, msg);
-      } else {
-        bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
-      }
-      return;
-    }
-    
     // Xử lý khi người dùng reply "1" vào tin nhắn thông báo ngân hàng
     if (msg.reply_to_message && msg.reply_to_message.text && msg.text && msg.text === '1') {
       // Kiểm tra quyền Operator
       if (await isUserOperator(userId, chatId)) {
         await handleBankNotificationReply(bot, msg);
       } else {
-        bot.sendMessage(chatId,);
+        bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
       }
       return;
+    }
+    
+    // Xử lý pic mode replies: 1, 2, 3
+    if (msg.reply_to_message && (msg.reply_to_message.photo || msg.reply_to_message.text) && 
+        msg.text && (msg.text === '1' || msg.text === '2' || msg.text === '3')) {
+      // Kiểm tra xem pic mode có được bật không
+      if (await isPicModeEnabled(chatId)) {
+        // Kiểm tra quyền Operator
+        if (await isUserOperator(userId, chatId)) {
+          await handlePicModeReply(bot, msg, msg.text);
+        } else {
+          bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
+        }
+        return;
+      }
     }
     
     // Nếu không có văn bản, không xử lý
@@ -422,6 +416,16 @@ const handleMessage = async (bot, msg, cache) => {
         return;
       }
       
+      if (messageText.startsWith('/d2 ')) {
+        // Kiểm tra quyền Operator
+        if (await isUserOperator(userId, chatId)) {
+          await handleWithdrawRateCommand(bot, msg);
+        } else {
+          bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
+        }
+        return;
+      }
+      
       if (messageText.startsWith('/x ')) {
         // Kiểm tra quyền Operator
         if (await isUserOperator(userId, chatId)) {
@@ -530,6 +534,16 @@ const handleMessage = async (bot, msg, cache) => {
       
       if (messageText.startsWith('/format')) {
         await handleFormatCommand(bot, msg);
+        return;
+      }
+      
+      if (messageText.startsWith('/pic ')) {
+        // Kiểm tra quyền Operator
+        if (await isUserOperator(userId, chatId)) {
+          await handlePicCommand(bot, msg);
+        } else {
+          bot.sendMessage(chatId, "⛔ 您无权使用此命令！需要操作员权限。");
+        }
         return;
       }
       
@@ -688,8 +702,6 @@ const handleMessage = async (bot, msg, cache) => {
       await handleSetUsdtAddressCommand(bot, msg);
       return;
     }
-
-  
   } catch (error) {
     console.error('Error in handleMessage:', error);
   }
@@ -744,6 +756,7 @@ const {
   handleRateCommand,
   handleExchangeRateCommand,
   handleDualRateCommand,
+  handleWithdrawRateCommand,
   handleDeleteCommand
 } = require('./groupCommands');
 

@@ -14,6 +14,23 @@ const GroupSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // Các trường mới để tracking riêng deposit và withdraw
+  totalDepositUSDT: {
+    type: Number,
+    default: 0
+  },
+  totalDepositVND: {
+    type: Number,
+    default: 0
+  },
+  totalWithdrawUSDT: {
+    type: Number,
+    default: 0
+  },
+  totalWithdrawVND: {
+    type: Number,
+    default: 0
+  },
   usdtPaid: {
     type: Number,
     default: 0
@@ -29,6 +46,15 @@ const GroupSchema = new mongoose.Schema({
   exchangeRate: {
     type: Number,
     default: 0
+  },
+  // Các trường mới cho phí và tỷ giá xuất tiền
+  withdrawRate: {
+    type: Number,
+    default: null
+  },
+  withdrawExchangeRate: {
+    type: Number,
+    default: null
   },
   numberFormat: {
     type: String,

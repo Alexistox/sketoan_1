@@ -125,14 +125,12 @@ Tin nhắn được coi là **thông báo ngân hàng** nếu:
 | Tính năng | Cách sử dụng | Mục đích | Đặc điểm |
 |-----------|--------------|----------|----------|
 | **Reply "1"** | Reply "1" vào thông báo ngân hàng | Tự động + tiền | Chỉ nhận diện thông báo ngân hàng |
-| **/11** | Reply "/11" vào ảnh/text | Tự động + tiền | Nhận diện mọi text có số tiền |
-| **/12** | Reply "/12" vào ảnh/text | Tự động % tiền | Nhận diện mọi text có số tiền |
 | **+ thủ công** | Gõ "+số_tiền" | Thêm tiền thủ công | Kiểm soát hoàn toàn |
 
 ## Lưu ý quan trọng
 
 1. **Độ chính xác**: Tính năng sử dụng regex patterns để nhận diện, độ chính xác cao với thông báo ngân hàng chuẩn
-2. **Xử lý lỗi**: Nếu không nhận diện được, hãy sử dụng lệnh `/11` hoặc `+` thủ công
+2. **Xử lý lỗi**: Nếu không nhận diện được, hãy sử dụng lệnh `+` thủ công
 3. **Ghi log**: Mọi giao dịch đều được ghi log và có thể hoàn tác bằng lệnh `/skip`
 4. **Bảo mật**: Chỉ Operator mới có thể sử dụng để đảm bảo an toàn
 
@@ -159,7 +157,7 @@ A: Kiểm tra xem thông báo có chứa:
 - Số tài khoản (ít nhất 8 chữ số)
 
 ### Q: Tại sao số tiền trích xuất không chính xác?
-A: Sử dụng lệnh `/11` hoặc gõ `+` thủ công để kiểm soát chính xác hơn
+A: Sử dụng lệnh `+` thủ công để kiểm soát chính xác hơn
 
 ### Q: Có thể sử dụng với thông báo ngân hàng nước ngoài?
 A: Có, hỗ trợ tiếng Anh và tiếng Trung với các từ khóa tương ứng 

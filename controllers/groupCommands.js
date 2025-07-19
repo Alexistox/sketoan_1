@@ -2,7 +2,7 @@ const Group = require('../models/Group');
 const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const Config = require('../models/Config');
-const { formatSmart, formatRateValue, formatTelegramMessage, formatDateUS, getUserNumberFormat, getGroupNumberFormat } = require('../utils/formatter');
+const { formatSmart, formatRateValue, formatTelegramMessage, formatWithdrawRateMessage, parseSpecialNumber, formatDateUS, getUserNumberFormat, getGroupNumberFormat } = require('../utils/formatter');
 const { getButtonsStatus, getInlineKeyboard } = require('./userCommands');
 
 /**
@@ -22,6 +22,10 @@ const handleClearCommand = async (bot, msg) => {
         chatId: msg.chat.id.toString(),
         totalVND: 0,
         totalUSDT: 0,
+        totalDepositUSDT: 0,
+        totalDepositVND: 0,
+        totalWithdrawUSDT: 0,
+        totalWithdrawVND: 0,
         usdtPaid: 0,
         remainingUSDT: 0,
         rate: currentRate,
@@ -31,6 +35,10 @@ const handleClearCommand = async (bot, msg) => {
     } else {
       group.totalVND = 0;
       group.totalUSDT = 0;
+      group.totalDepositUSDT = 0;
+      group.totalDepositVND = 0;
+      group.totalWithdrawUSDT = 0;
+      group.totalWithdrawVND = 0;
       group.usdtPaid = 0;
       group.remainingUSDT = 0;
       group.lastClearDate = new Date();
@@ -80,17 +88,30 @@ const handleClearCommand = async (bot, msg) => {
       example: formatSmart(exampleValue),
       totalAmount: "0",
       totalUSDT: "0",
+      totalDepositUSDT: "0",
+      totalDepositVND: "0", 
+      totalWithdrawUSDT: "0",
+      totalWithdrawVND: "0",
       paidUSDT: "0",
       remainingUSDT: "0",
       currencyUnit,
       cards: [] // Empty after clear
     };
     
+    // Kiểm tra nếu có withdraw rate để hiển thị thông tin đầy đủ
+    const hasWithdrawRate = group.withdrawRate !== null && group.withdrawExchangeRate !== null;
+    if (hasWithdrawRate) {
+      responseData.withdrawRate = formatRateValue(group.withdrawRate) + "%";
+      responseData.withdrawExchangeRate = formatRateValue(group.withdrawExchangeRate);
+    }
+    
     // Lấy format của người dùng
     const userFormat = await getGroupNumberFormat(msg.chat.id);
     
-    // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData, userFormat);
+    // Format và gửi tin nhắn - sử dụng formatter phù hợp
+    const response = hasWithdrawRate ? 
+      formatWithdrawRateMessage(responseData, userFormat) : 
+      formatTelegramMessage(responseData, userFormat);
     
     // Kiểm tra trạng thái hiển thị buttons
     const showButtons = await getButtonsStatus(msg.chat.id);
@@ -125,7 +146,7 @@ const handleRateCommand = async (bot, msg) => {
     }
     
     // Chuyển đổi sang số
-    const xValue = parseFloat(inputText);
+    const xValue = parseSpecialNumber(inputText);
     if (isNaN(xValue)) {
       bot.sendMessage(chatId, "输入值无效。");
       return;
@@ -221,7 +242,7 @@ const handleExchangeRateCommand = async (bot, msg) => {
     }
     
     // Chuyển đổi sang số
-    const yValue = parseFloat(inputText);
+    const yValue = parseSpecialNumber(inputText);
     if (isNaN(yValue)) {
       bot.sendMessage(chatId, "输入值无效。");
       return;
@@ -317,8 +338,8 @@ const handleDualRateCommand = async (bot, msg) => {
       return;
     }
     
-    const newRate = parseFloat(parts[0]);
-    const newExRate = parseFloat(parts[1]);
+    const newRate = parseSpecialNumber(parts[0]);
+    const newExRate = parseSpecialNumber(parts[1]);
     
     if (isNaN(newRate) || isNaN(newExRate)) {
       bot.sendMessage(chatId, "输入的数值无效，请检查后重试。");
@@ -377,6 +398,141 @@ const handleDualRateCommand = async (bot, msg) => {
       example: formatSmart(exampleValue),
       totalAmount: formatSmart(group.totalVND),
       totalUSDT: formatSmart(group.totalUSDT),
+      totalDepositUSDT: formatSmart(group.totalDepositUSDT || 0),
+      totalDepositVND: formatSmart(group.totalDepositVND || 0),
+      totalWithdrawUSDT: formatSmart(group.totalWithdrawUSDT || 0),
+      totalWithdrawVND: formatSmart(group.totalWithdrawVND || 0),
+      paidUSDT: formatSmart(group.usdtPaid),
+      remainingUSDT: formatSmart(group.remainingUSDT),
+      currencyUnit,
+      cards: cardSummary
+    };
+    
+    // Kiểm tra nếu có withdraw rate để hiển thị thông tin đầy đủ
+    const hasWithdrawRate = group.withdrawRate !== null && group.withdrawExchangeRate !== null;
+    if (hasWithdrawRate) {
+      responseData.withdrawRate = formatRateValue(group.withdrawRate) + "%";
+      responseData.withdrawExchangeRate = formatRateValue(group.withdrawExchangeRate);
+    }
+    
+    // Lấy format của người dùng
+    const userFormat = await getGroupNumberFormat(chatId);
+    
+    // Format và gửi tin nhắn - sử dụng formatter phù hợp
+    const response = hasWithdrawRate ? 
+      formatWithdrawRateMessage(responseData, userFormat) : 
+      formatTelegramMessage(responseData, userFormat);
+    bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+    
+  } catch (error) {
+    console.error('Error in handleDualRateCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理双费率命令时出错。请稍后再试。");
+  }
+};
+
+/**
+ * Xử lý lệnh đặt 出款费率 và 出款汇率 (/d2)
+ */
+const handleWithdrawRateCommand = async (bot, msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const senderName = msg.from.first_name;
+    const messageText = msg.text;
+    
+    // Trích xuất tham số từ tin nhắn
+    const param = messageText.substring(4).trim();
+    
+    // Kiểm tra lệnh tắt
+    if (param.toLowerCase() === 'off') {
+      // Tìm group
+      let group = await Group.findOne({ chatId: chatId.toString() });
+      if (!group) {
+        bot.sendMessage(chatId, "没有找到群组信息。");
+        return;
+      }
+      
+      // Reset withdraw rate về null
+      group.withdrawRate = null;
+      group.withdrawExchangeRate = null;
+      await group.save();
+      
+      bot.sendMessage(chatId, "已关闭出款汇率费率显示，回到普通模式。");
+      return;
+    }
+    
+    const parts = param.split('/');
+    
+    if (parts.length !== 2) {
+      bot.sendMessage(chatId, "语法无效。例如: /d2 3/14800 或者 /d2 off");
+      return;
+    }
+    
+    const newWithdrawRate = parseSpecialNumber(parts[0]);
+    const newWithdrawExRate = parseSpecialNumber(parts[1]);
+    
+    if (isNaN(newWithdrawRate) || isNaN(newWithdrawExRate)) {
+      bot.sendMessage(chatId, "输入的数值无效，请检查后重试。");
+      return;
+    }
+    
+    // Tìm hoặc tạo group
+    let group = await Group.findOne({ chatId: chatId.toString() });
+    if (!group) {
+      group = new Group({
+        chatId: chatId.toString(),
+        withdrawRate: newWithdrawRate,
+        withdrawExchangeRate: newWithdrawExRate
+      });
+    } else {
+      group.withdrawRate = newWithdrawRate;
+      group.withdrawExchangeRate = newWithdrawExRate;
+    }
+    
+    await group.save();
+    
+    // Lưu transaction mới
+    const transaction = new Transaction({
+      chatId: chatId.toString(),
+      type: 'setWithdrawRate',
+      amount: 0,
+      message: messageText,
+      senderName,
+      rate: newWithdrawRate,
+      exchangeRate: newWithdrawExRate,
+      timestamp: new Date()
+    });
+    
+    await transaction.save();
+    
+    // Tính toán giá trị ví dụ cho xuất tiền
+    const exampleWithdrawValue = (100000 / newWithdrawExRate) * (1 + newWithdrawRate / 100);
+    
+    // Lấy đơn vị tiền tệ
+    const configCurrency = await Config.findOne({ key: `CURRENCY_UNIT_${chatId}` });
+    const currencyUnit = configCurrency ? configCurrency.value : 'USDT';
+    
+    // Lấy thông tin giao dịch gần đây
+    const todayDate = new Date();
+    const depositData = await getDepositHistory(chatId);
+    const paymentData = await getPaymentHistory(chatId);
+    const cardSummary = await getCardSummary(chatId);
+    
+    // Tạo response JSON với thông tin mở rộng
+    const responseData = {
+      date: formatDateUS(todayDate),
+      depositData,
+      paymentData,
+      rate: (group.rate !== null && group.rate !== undefined) ? formatRateValue(group.rate) + "%" : "未设置",
+      exchangeRate: (group.exchangeRate !== null && group.exchangeRate !== undefined) ? formatRateValue(group.exchangeRate) : "未设置",
+      withdrawRate: formatRateValue(newWithdrawRate) + "%",
+      withdrawExchangeRate: formatRateValue(newWithdrawExRate),
+      withdrawExample: formatSmart(exampleWithdrawValue),
+      totalAmount: formatSmart(group.totalVND),
+      totalUSDT: formatSmart(group.totalUSDT),
+      totalDepositUSDT: formatSmart(group.totalDepositUSDT),
+      totalDepositVND: formatSmart(group.totalDepositVND || 0),
+      totalWithdrawUSDT: formatSmart(group.totalWithdrawUSDT),
+      totalWithdrawVND: formatSmart(group.totalWithdrawVND || 0),
       paidUSDT: formatSmart(group.usdtPaid),
       remainingUSDT: formatSmart(group.remainingUSDT),
       currencyUnit,
@@ -387,12 +543,12 @@ const handleDualRateCommand = async (bot, msg) => {
     const userFormat = await getGroupNumberFormat(chatId);
     
     // Format và gửi tin nhắn
-    const response = formatTelegramMessage(responseData, userFormat);
+    const response = formatWithdrawRateMessage(responseData, userFormat);
     bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
     
   } catch (error) {
-    console.error('Error in handleDualRateCommand:', error);
-    bot.sendMessage(msg.chat.id, "处理双费率命令时出错。请稍后再试。");
+    console.error('Error in handleWithdrawRateCommand:', error);
+    bot.sendMessage(msg.chat.id, "处理出款费率命令时出错。请稍后再试。");
   }
 };
 
@@ -416,10 +572,16 @@ const handleDeleteCommand = async (bot, msg) => {
     } else {
       group.totalVND = 0;
       group.totalUSDT = 0;
+      group.totalDepositUSDT = 0;
+      group.totalDepositVND = 0;
+      group.totalWithdrawUSDT = 0;
+      group.totalWithdrawVND = 0;
       group.usdtPaid = 0;
       group.remainingUSDT = 0;
       group.rate = 0;
       group.exchangeRate = 0;
+      group.withdrawRate = null;
+      group.withdrawExchangeRate = null;
       group.lastClearDate = new Date();
     }
     
@@ -576,6 +738,7 @@ module.exports = {
   handleRateCommand,
   handleExchangeRateCommand,
   handleDualRateCommand,
+  handleWithdrawRateCommand,
   handleDeleteCommand,
   getDepositHistory,
   getPaymentHistory,
