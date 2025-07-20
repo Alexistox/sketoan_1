@@ -1,9 +1,14 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const TelegramBot = require('node-telegram-bot-api');
+const { NewMessage } = require('telegram/events');
+const { Button } = require('telegram/tl/custom/button');
 const axios = require('axios');
 const NodeCache = require('node-cache');
+
+// Import userbot config
+const UserbotConfig = require('./config/userbot');
+const UserbotWrapper = require('./utils/userbotWrapper');
 
 // Import controllers và utils
 const { handleMessage } = require('./controllers/messageController');
@@ -20,34 +25,65 @@ app.use(express.json());
 // Kết nối MongoDB
 connectDB();
 
-// Khởi tạo Telegram Bot
-const token = process.env.TELEGRAM_BOT_TOKEN;
-const bot = new TelegramBot(token, { polling: true });
+// Khởi tạo Userbot
+const userbotConfig = new UserbotConfig();
+let client;
 
-// Xử lý tin nhắn
-bot.on('message', async (msg) => {
+// Hàm khởi tạo userbot
+async function initializeUserbot() {
   try {
-    await handleMessage(bot, msg, cache);
-  } catch (error) {
-    console.error('Error handling message:', error);
-    bot.sendMessage(msg.chat.id, "处理消息时出错。请稍后再试。");
-  }
-});
+    client = await userbotConfig.initializeClient();
+    const botWrapper = new UserbotWrapper(client);
+    
+    // Xử lý tin nhắn mới
+    client.addEventHandler(async (event) => {
+      try {
+        const message = event.message;
+        if (message) {
+          // Chuyển đổi message format để tương thích với controller hiện tại
+          const adaptedMsg = await adaptMessageFormat(message);
+          await handleMessage(botWrapper, adaptedMsg, cache);
+        }
+      } catch (error) {
+        console.error('Error handling message:', error);
+        if (event.message?.chatId) {
+          await client.sendMessage(event.message.chatId, {
+            message: "处理消息时出错。请稍后再试。"
+          });
+        }
+      }
+    }, new NewMessage({}));
 
-// Xử lý callback query từ inline keyboard
-bot.on('callback_query', async (callbackQuery) => {
-  try {
-    await handleInlineButtonCallback(bot, callbackQuery);
+    console.log('Userbot events initialized');
+    return { client, botWrapper };
   } catch (error) {
-    console.error('Error handling callback query:', error);
+    console.error('Failed to initialize userbot:', error);
+    process.exit(1);
   }
-});
+}
 
-// Webhook for Telegram
-app.post(`/bot${token}`, (req, res) => {
-  bot.processUpdate(req.body);
-  res.sendStatus(200);
-});
+// Hàm chuyển đổi format tin nhắn cho tương thích
+async function adaptMessageFormat(message) {
+  return {
+    message_id: message.id,
+    from: {
+      id: message.fromId?.userId || message.peerId?.userId,
+      first_name: message.sender?.firstName || '',
+      last_name: message.sender?.lastName || '',
+      username: message.sender?.username || '',
+    },
+    chat: {
+      id: message.chatId || message.peerId?.chatId || message.peerId?.userId,
+      type: message.isGroup ? 'group' : (message.isChannel ? 'channel' : 'private'),
+    },
+    date: Math.floor(message.date),
+    text: message.text || '',
+    photo: message.photo ? [{ file_id: message.photo }] : undefined,
+    reply_to_message: message.replyTo ? {
+      message_id: message.replyTo.replyToMsgId,
+    } : undefined,
+  };
+}
 
 // Import và sử dụng report routes
 const reportRoutes = require('./routes/reportRoutes');
@@ -60,9 +96,10 @@ app.get('/', (req, res) => {
 
 // Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
-  console.log('Bot started polling for updates');
+  console.log('Initializing userbot...');
+  await initializeUserbot();
 });
 
 // Xử lý lỗi không bắt được
@@ -70,4 +107,13 @@ process.on('unhandledRejection', (error) => {
   console.error('Unhandled Rejection:', error);
 });
 
-module.exports = { bot }; 
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('Received SIGINT. Disconnecting userbot...');
+  if (client) {
+    await client.disconnect();
+  }
+  process.exit(0);
+});
+
+module.exports = { getClient: () => client }; 
