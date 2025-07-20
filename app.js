@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const { NewMessage } = require('telegram/events');
-const { Button } = require('telegram/tl/custom/button');
 const axios = require('axios');
 const NodeCache = require('node-cache');
 

@@ -1,4 +1,4 @@
-const { TelegramApi } = require('telegram/client');
+const { TelegramClient } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const input = require('input');
 
@@ -13,7 +13,7 @@ class UserbotConfig {
   }
 
   async initializeClient() {
-    this.client = new TelegramApi(this.session, this.apiId, this.apiHash, {
+    this.client = new TelegramClient(this.session, this.apiId, this.apiHash, {
       connectionRetries: 5,
     });
 
