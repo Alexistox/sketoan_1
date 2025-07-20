@@ -5,7 +5,14 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:restart": "pm2 restart userbot",
+    "pm2:stop": "pm2 stop userbot",
+    "pm2:logs": "pm2 logs userbot",
+    "pm2:status": "pm2 status",
+    "deploy": "chmod +x deploy.sh && ./deploy.sh",
+    "setup": "chmod +x start.sh && ./start.sh"
   },
   "dependencies": {
     "axios": "^1.6.2",
